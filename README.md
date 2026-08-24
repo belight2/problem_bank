@@ -3,7 +3,7 @@
 문제 은행 백엔드 프로젝트입니다. PostgreSQL과 Redis는 Docker Compose로 실행하고, Spring Boot 애플리케이션은 로컬 Java 환경에서 실행합니다.
 
 ```text
-로컬 Spring Boot 애플리케이션 → localhost:15432 → Docker PostgreSQL
+로컬 Spring Boot 애플리케이션 → localhost:25431 → Docker PostgreSQL
                            └→ localhost:6379 → Docker Redis
 ```
 
@@ -57,7 +57,7 @@ java -jar build/libs/product-0.0.1-SNAPSHOT.jar
 | 항목 | 기본값 |
 | --- | --- |
 | Host | `localhost` |
-| Port | `15432` |
+| Port | `25431` |
 | Database | `problem_bank` |
 | Username | `problem_bank` |
 | Password | `problem_bank_local` |
