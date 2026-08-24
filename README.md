@@ -1,9 +1,10 @@
 # Problem Bank
 
-문제 은행 백엔드 프로젝트입니다. PostgreSQL만 Docker Compose로 실행하고, Spring Boot 애플리케이션은 로컬 Java 환경에서 실행합니다.
+문제 은행 백엔드 프로젝트입니다. PostgreSQL과 Redis는 Docker Compose로 실행하고, Spring Boot 애플리케이션은 로컬 Java 환경에서 실행합니다.
 
 ```text
-로컬 Spring Boot 애플리케이션 → localhost:5432 → Docker PostgreSQL
+로컬 Spring Boot 애플리케이션 → localhost:15432 → Docker PostgreSQL
+                           └→ localhost:6379 → Docker Redis
 ```
 
 ## 요구 사항
@@ -15,7 +16,7 @@
 
 ## 빠른 시작
 
-### 1. PostgreSQL 실행
+### 1. PostgreSQL과 Redis 실행
 
 ```bash
 docker compose up -d
@@ -27,7 +28,7 @@ docker compose up -d
 docker compose ps
 ```
 
-`db` 서비스가 `healthy` 상태가 되면 사용할 수 있습니다.
+`db`와 `redis` 서비스가 모두 `healthy` 상태가 되면 사용할 수 있습니다.
 
 ### 2. Spring Boot 실행
 
@@ -56,10 +57,12 @@ java -jar build/libs/product-0.0.1-SNAPSHOT.jar
 | 항목 | 기본값 |
 | --- | --- |
 | Host | `localhost` |
-| Port | `5432` |
+| Port | `15432` |
 | Database | `problem_bank` |
 | Username | `problem_bank` |
 | Password | `problem_bank_local` |
+
+Redis는 `localhost:6379`의 0번 데이터베이스를 사용하며 로컬 개발 환경에서는 별도 비밀번호를 설정하지 않습니다.
 
 기본값은 로컬 개발 전용입니다. 설정을 변경하려면 `.env.example`을 복사해 Compose용 `.env` 파일을 만듭니다.
 
@@ -67,7 +70,7 @@ java -jar build/libs/product-0.0.1-SNAPSHOT.jar
 cp .env.example .env
 ```
 
-DB 설정을 변경했다면 애플리케이션 실행 환경에도 동일한 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT` 값을 지정해야 합니다. 기본값을 그대로 사용한다면 별도 환경변수 설정은 필요 없습니다.
+DB 또는 Redis 설정을 변경했다면 애플리케이션 실행 환경에도 동일한 `POSTGRES_*`, `REDIS_*` 값을 지정해야 합니다. 기본값을 그대로 사용한다면 별도 환경변수 설정은 필요 없습니다.
 
 ## PostgreSQL 접속
 
@@ -77,15 +80,23 @@ DB 설정을 변경했다면 애플리케이션 실행 환경에도 동일한 `P
 docker compose exec db psql -U problem_bank -d problem_bank
 ```
 
+Redis 연결 상태는 다음 명령으로 확인합니다.
+
+```bash
+docker compose exec redis redis-cli ping
+```
+
+정상이라면 `PONG`이 출력됩니다.
+
 ## 종료 및 데이터 초기화
 
-DB 컨테이너만 종료합니다. 데이터는 Docker 볼륨에 유지됩니다.
+DB와 Redis 컨테이너를 종료합니다. 데이터는 Docker 볼륨에 유지됩니다.
 
 ```bash
 docker compose down
 ```
 
-DB 데이터까지 완전히 삭제하려면 다음 명령을 사용합니다.
+PostgreSQL과 Redis 데이터까지 완전히 삭제하려면 다음 명령을 사용합니다.
 
 ```bash
 docker compose down -v
