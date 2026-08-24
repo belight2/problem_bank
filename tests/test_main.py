@@ -1,11 +1,7 @@
 from fastapi.testclient import TestClient
 
-from app.main import app
 
-
-def test_root_without_starting_database() -> None:
-    with TestClient(app) as client:
-        response = client.get("/")
-
+def test_root(client: TestClient) -> None:
+    response = client.get("/")
     assert response.status_code == 200
     assert response.json() == {"name": "Problem Bank API", "docs": "/docs"}

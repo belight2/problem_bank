@@ -1,18 +1,19 @@
 # Problem Bank API
 
-FastAPI 기반 문제 은행 백엔드의 시작 프로젝트입니다. PostgreSQL만 Docker Compose로 실행하고 애플리케이션은 로컬 Python 환경에서 실행합니다.
+FastAPI 기반 개인용 문제 은행 백엔드입니다. PostgreSQL만 Docker Compose로 실행하고 애플리케이션은 로컬 Python 환경에서 실행합니다.
 
 ```text
 로컬 FastAPI 애플리케이션 → localhost:25431 → Docker PostgreSQL
 ```
 
-아직 도메인 모델이나 CRUD API는 구현하지 않았습니다.
+카드를 만들고 그 안에 주제별 문제를 직접 저장할 수 있습니다. 문제 채점이나 점수 계산 기능은 포함하지 않습니다.
 
 ## 기술 스택
 
 - Python 3.12+
 - FastAPI
 - SQLAlchemy 2
+- Alembic
 - PostgreSQL 17
 - Pydantic Settings
 - pytest, Ruff
@@ -52,7 +53,13 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-### 4. FastAPI 실행
+### 4. DB 마이그레이션
+
+```bash
+uv run alembic upgrade head
+```
+
+### 5. FastAPI 실행
 
 ```bash
 uv run uvicorn app.main:app --reload
@@ -74,10 +81,27 @@ uvicorn app.main:app --reload
 | --- | --- | --- |
 | `GET` | `/` | 애플리케이션 정보 |
 | `GET` | `/health` | PostgreSQL 연결 상태 |
+| `POST` | `/cards` | 카드 생성 |
+| `GET` | `/cards` | 카드 목록 조회 |
+| `GET` | `/cards/{card_id}` | 카드 단건 조회 |
+| `PATCH` | `/cards/{card_id}` | 카드 수정 |
+| `DELETE` | `/cards/{card_id}` | 카드와 소속 문제 삭제 |
+| `POST` | `/cards/{card_id}/problems` | 문제 생성 |
+| `GET` | `/cards/{card_id}/problems` | 문제 목록 조회 |
+| `GET` | `/cards/{card_id}/problems?topic=주제` | 주제별 문제 조회 |
+| `GET` | `/cards/{card_id}/problems/random` | 카드 전체에서 문제 무작위 조회 |
+| `GET` | `/cards/{card_id}/problems/random?topic=주제` | 특정 주제에서 문제 무작위 조회 |
+| `GET` | `/cards/{card_id}/problems/{problem_id}` | 문제 단건 조회 |
+| `PATCH` | `/cards/{card_id}/problems/{problem_id}` | 문제 수정 |
+| `DELETE` | `/cards/{card_id}/problems/{problem_id}` | 문제 삭제 |
+
+카드는 `title`, 선택적인 `description`을 갖습니다. 문제는 `topic`, `question`, 선택적인 `answer`를 가지며 다른 카드로 이동하는 기능은 제공하지 않습니다.
+
+랜덤 조회는 기본적으로 한 문제를 반환합니다. `limit` 쿼리 파라미터로 최대 100개까지 무작위로 조회할 수 있습니다.
 
 ## 테스트와 코드 검사
 
-아래 명령은 Docker나 PostgreSQL을 자동으로 실행하지 않습니다.
+테스트는 격리된 SQLite DB를 사용하며 Docker나 PostgreSQL을 자동으로 실행하지 않습니다.
 
 ```bash
 uv run pytest
@@ -119,8 +143,12 @@ docker compose down -v
 
 ```text
 app/
+├── api/routes/       # 카드·문제 API
 ├── core/config.py    # 환경변수 설정
-├── db/session.py     # SQLAlchemy 연결과 세션
+├── db/               # SQLAlchemy Base와 세션
+├── models/           # Card·Problem DB 모델
+├── schemas/          # 요청·응답 검증 모델
 └── main.py           # FastAPI 애플리케이션
-tests/                # DB 없이 실행하는 기본 테스트
+alembic/              # PostgreSQL 스키마 마이그레이션
+tests/                # SQLite 기반 API 테스트
 ```
