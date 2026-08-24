@@ -1,0 +1,91 @@
+import type { Card, CardInput, Problem, ProblemInput } from "../types";
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+
+interface ApiErrorDetail {
+  detail?: string | Array<{ msg?: string }>;
+}
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    let message = `요청을 처리하지 못했습니다. (${response.status})`;
+    try {
+      const body = (await response.json()) as ApiErrorDetail;
+      if (typeof body.detail === "string") {
+        message = body.detail;
+      } else if (Array.isArray(body.detail)) {
+        message = body.detail.map((item) => item.msg).filter(Boolean).join(", ") || message;
+      }
+    } catch {
+      // 서버가 JSON이 아닌 오류 응답을 보낸 경우 기본 메시지를 사용합니다.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+export const cardApi = {
+  list: () => request<Card[]>("/cards?limit=100"),
+  create: (input: CardInput) =>
+    request<Card>("/cards", { method: "POST", body: JSON.stringify(input) }),
+  update: (cardId: number, input: CardInput) =>
+    request<Card>(`/cards/${cardId}`, { method: "PATCH", body: JSON.stringify(input) }),
+  remove: (cardId: number) => request<void>(`/cards/${cardId}`, { method: "DELETE" }),
+};
+
+export const problemApi = {
+  list: (cardId: number) => request<Problem[]>(`/cards/${cardId}/problems?limit=100`),
+  random: (
+    cardId: number,
+    options: { count: number; topic?: string; signal?: AbortSignal },
+  ) => {
+    const params = new URLSearchParams({ limit: String(options.count) });
+    if (options.topic) params.set("topic", options.topic);
+    return request<Problem[]>(`/cards/${cardId}/problems/random?${params.toString()}`, {
+      signal: options.signal,
+    });
+  },
+  create: (cardId: number, input: ProblemInput) =>
+    request<Problem>(`/cards/${cardId}/problems`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (cardId: number, problemId: number, input: ProblemInput) =>
+    request<Problem>(`/cards/${cardId}/problems/${problemId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  remove: (cardId: number, problemId: number) =>
+    request<void>(`/cards/${cardId}/problems/${problemId}`, { method: "DELETE" }),
+};
+
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof TypeError) {
+    return "API 서버에 연결할 수 없습니다. FastAPI가 실행 중인지 확인해 주세요.";
+  }
+  return "예상하지 못한 오류가 발생했습니다.";
+}

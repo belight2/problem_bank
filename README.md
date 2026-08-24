@@ -1,12 +1,12 @@
-# Problem Bank API
+# Problem Bank
 
-FastAPI 기반 개인용 문제 은행 백엔드입니다. PostgreSQL만 Docker Compose로 실행하고 애플리케이션은 로컬 Python 환경에서 실행합니다.
+React·TypeScript 프론트엔드와 FastAPI 백엔드로 구성한 개인용 문제 은행입니다. PostgreSQL만 Docker Compose로 실행하고 애플리케이션은 로컬 환경에서 실행합니다.
 
 ```text
-로컬 FastAPI 애플리케이션 → localhost:25431 → Docker PostgreSQL
+React (localhost:5173) → FastAPI (localhost:8000) → PostgreSQL (localhost:25431)
 ```
 
-카드를 만들고 그 안에 주제별 문제를 직접 저장할 수 있습니다. 문제 채점이나 점수 계산 기능은 포함하지 않습니다.
+카드를 만들고 그 안에 주제별 문제를 직접 저장할 수 있습니다. 프론트엔드에서는 카드·문제 CRUD와 설정한 개수만큼 문제를 무작위로 제공하는 기능을 사용할 수 있습니다. 문제 채점이나 점수 계산 기능은 포함하지 않습니다.
 
 ## 기술 스택
 
@@ -17,6 +17,10 @@ FastAPI 기반 개인용 문제 은행 백엔드입니다. PostgreSQL만 Docker 
 - PostgreSQL 17
 - Pydantic Settings
 - pytest, Ruff
+- React
+- TypeScript
+- Vite
+- ESLint
 
 ## 빠른 시작
 
@@ -75,6 +79,20 @@ uvicorn app.main:app --reload
 - Swagger UI: `http://localhost:8000/docs`
 - OpenAPI JSON: `http://localhost:8000/openapi.json`
 
+### 6. React 프론트엔드 실행
+
+별도 터미널에서 다음 명령을 실행합니다.
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+- 프론트엔드: `http://localhost:5173`
+- 개발 중 `/api` 요청은 Vite 프록시를 통해 `http://localhost:8000`으로 전달됩니다.
+
 ## 현재 API
 
 | Method | Path | 설명 |
@@ -99,6 +117,8 @@ uvicorn app.main:app --reload
 
 랜덤 조회는 기본적으로 한 문제를 반환합니다. `limit` 쿼리 파라미터로 최대 100개까지 무작위로 조회할 수 있습니다.
 
+프론트엔드에서는 카드 전체 또는 특정 주제를 범위로 정하고, 1~100 사이의 문제 개수를 직접 입력합니다. 한 번 반환된 문제 묶음 안에는 같은 문제가 중복되지 않으며, 요청한 개수보다 등록된 문제가 적으면 존재하는 문제만 제공합니다. 문제 제공 기준은 [문제 제공 및 랜덤 로직 기획서](docs/problem-delivery-random-plan.md)에 정리되어 있습니다.
+
 ## 테스트와 코드 검사
 
 테스트는 격리된 SQLite DB를 사용하며 Docker나 PostgreSQL을 자동으로 실행하지 않습니다.
@@ -107,6 +127,14 @@ uvicorn app.main:app --reload
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
+```
+
+프론트엔드 검사:
+
+```bash
+cd frontend
+npm run lint
+npm run build
 ```
 
 ## PostgreSQL 기본 설정
@@ -151,4 +179,6 @@ app/
 └── main.py           # FastAPI 애플리케이션
 alembic/              # PostgreSQL 스키마 마이그레이션
 tests/                # SQLite 기반 API 테스트
+frontend/             # React·TypeScript 프론트엔드
+docs/                 # 구현 전 검토할 기획 문서
 ```

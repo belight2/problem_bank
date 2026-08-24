@@ -69,8 +69,11 @@ def test_problem_crud_topic_filter_and_random(client: TestClient) -> None:
         params={"limit": 2},
     )
     assert random_response.status_code == 200
-    assert len(random_response.json()) == 2
-    assert {problem["card_id"] for problem in random_response.json()} == {card_id}
+    random_problems = random_response.json()
+    random_problem_ids = [problem["id"] for problem in random_problems]
+    assert len(random_problem_ids) == 2
+    assert len(set(random_problem_ids)) == 2
+    assert {problem["card_id"] for problem in random_problems} == {card_id}
 
     random_topic_response = client.get(
         f"/cards/{card_id}/problems/random",
