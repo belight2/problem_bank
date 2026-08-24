@@ -24,6 +24,39 @@ React (localhost:5173) → FastAPI (localhost:8000) → PostgreSQL (localhost:25
 
 ## 빠른 시작
 
+Docker Desktop을 직접 실행한 뒤, 프로젝트 루트에서 백엔드와 DB를 실행합니다.
+
+터미널 1:
+
+```bash
+cp .env.example .env
+docker compose up -d db
+
+uv sync --extra dev
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
+```
+
+별도 터미널에서 프론트엔드를 실행합니다.
+
+터미널 2:
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+실행 후 아래 주소로 접속합니다.
+
+- 프론트엔드: `http://localhost:5173`
+- API: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+- PostgreSQL: `localhost:25431`
+
+아래부터는 각 단계를 나눠 설명합니다.
+
 ### 1. 환경 설정
 
 ```bash
@@ -37,7 +70,7 @@ cp .env.example .env
 Docker Desktop을 직접 실행한 다음 필요한 경우 아래 명령을 직접 실행합니다.
 
 ```bash
-docker compose up -d
+docker compose up -d db
 docker compose ps
 ```
 
