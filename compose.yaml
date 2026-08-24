@@ -1,0 +1,39 @@
+name: problem-bank
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-problem_bank}
+      POSTGRES_USER: ${POSTGRES_USER:-problem_bank}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-problem_bank_local}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-problem_bank}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-problem_bank}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-problem_bank_local}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DDL_AUTO:-update}
+      SPRING_JPA_OPEN_IN_VIEW: "false"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
