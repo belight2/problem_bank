@@ -428,29 +428,27 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
       : "랜덤 문제 풀기";
 
   return (
-    <Modal title={modalTitle} onClose={onClose} size="wide">
+    <Modal
+      title={modalTitle}
+      onClose={onClose}
+      size="wide"
+      headerAction={stage === "overview" ? (
+        <button
+          className="settings-gear"
+          type="button"
+          aria-label="랜덤 문제 설정 열기"
+          title="설정"
+          onClick={openSettings}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z" />
+            <path d="M19.4 13.5a7.8 7.8 0 0 0 0-3l1.7-1.3-2-3.4-2 .8a8 8 0 0 0-2.6-1.5L14.2 3h-4.1l-.3 2.1a8 8 0 0 0-2.6 1.5l-2-.8-2 3.4 1.7 1.3a7.8 7.8 0 0 0 0 3l-1.7 1.3 2 3.4 2-.8a8 8 0 0 0 2.6 1.5l.3 2.1h4.1l.3-2.1a8 8 0 0 0 2.6-1.5l2 .8 2-3.4-1.7-1.3Z" />
+          </svg>
+        </button>
+      ) : undefined}
+    >
       {stage === "overview" && (
         <section className="study-overview">
-          <div className="study-overview-heading">
-            <div>
-              <span className="study-overview-label">사용할 설정</span>
-              <h3>{activePreset?.name ?? "기본 설정"}</h3>
-              {activePreset?.description && <p>{activePreset.description}</p>}
-            </div>
-            <button
-              className="settings-gear"
-              type="button"
-              aria-label="랜덤 문제 설정 열기"
-              title="설정"
-              onClick={openSettings}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z" />
-                <path d="M19.4 13.5a7.8 7.8 0 0 0 0-3l1.7-1.3-2-3.4-2 .8a8 8 0 0 0-2.6-1.5L14.2 3h-4.1l-.3 2.1a8 8 0 0 0-2.6 1.5l-2-.8-2 3.4 1.7 1.3a7.8 7.8 0 0 0 0 3l-1.7 1.3 2 3.4 2-.8a8 8 0 0 0 2.6 1.5l.3 2.1h4.1l.3-2.1a8 8 0 0 0 2.6-1.5l2 .8 2-3.4-1.7-1.3Z" />
-              </svg>
-            </button>
-          </div>
-
           <div className="study-config-grid">
             <div>
               <span>문제 범위</span>

@@ -5,6 +5,7 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   description?: string;
+  headerAction?: ReactNode;
   size?: "default" | "wide";
   closeDisabled?: boolean;
 }
@@ -15,6 +16,7 @@ const focusableSelector =
 export function Modal({
   title,
   description,
+  headerAction,
   onClose,
   children,
   size = "default",
@@ -89,7 +91,10 @@ export function Modal({
         <header className="modal-header">
           <div>
             <p className="eyebrow">Problem bank</p>
-            <h2 id={titleId}>{title}</h2>
+            <div className="modal-title-row">
+              <h2 id={titleId}>{title}</h2>
+              {headerAction}
+            </div>
             {description && <p id={descriptionId}>{description}</p>}
           </div>
           <button
