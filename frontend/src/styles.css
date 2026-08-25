@@ -1773,6 +1773,10 @@ footer {
   gap: 0.8rem;
 }
 
+.preset-value-grid--count-only {
+  grid-template-columns: minmax(130px, 240px);
+}
+
 .preset-editor-actions {
   display: flex;
   flex-wrap: wrap;
