@@ -3,6 +3,8 @@ import type {
   CardInput,
   Problem,
   ProblemInput,
+  RandomStudySettings,
+  RandomStudySettingsInput,
   Topic,
   TopicInput,
 } from "../types";
@@ -107,6 +109,23 @@ export const problemApi = {
     }),
   remove: (cardId: number, problemId: number) =>
     request<void>(`/cards/${cardId}/problems/${problemId}`, { method: "DELETE" }),
+};
+
+export const randomStudySettingsApi = {
+  get: (cardId: number, signal?: AbortSignal) =>
+    request<RandomStudySettings | null>(`/cards/${cardId}/random-study-settings`, {
+      signal,
+    }),
+  save: (
+    cardId: number,
+    input: RandomStudySettingsInput,
+    signal?: AbortSignal,
+  ) =>
+    request<RandomStudySettings>(`/cards/${cardId}/random-study-settings`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+      signal,
+    }),
 };
 
 export function getErrorMessage(error: unknown): string {

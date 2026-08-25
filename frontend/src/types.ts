@@ -50,3 +50,16 @@ export interface ProblemInput {
   choices: string[] | null;
   answer: string | null;
 }
+
+export interface RandomStudySettings {
+  card_id: number;
+  topic_id: number | null;
+  problem_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RandomStudySettingsInput {
+  topic_id: number | null;
+  problem_count: number;
+}

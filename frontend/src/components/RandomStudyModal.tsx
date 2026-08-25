@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -6,7 +7,11 @@ import {
   type FormEvent,
 } from "react";
 
-import { getErrorMessage, problemApi } from "../api/client";
+import {
+  getErrorMessage,
+  problemApi,
+  randomStudySettingsApi,
+} from "../api/client";
 import { problemTypeLabels } from "../problemTypes";
 import type { Card, Problem, ProblemType, Topic } from "../types";
 import { Modal } from "./Modal";
@@ -21,6 +26,11 @@ interface RandomStudyModalProps {
 type StudyStage = "setup" | "loading" | "study" | "complete";
 type StudyScope = "all" | "topic";
 type GradeResult = "correct" | "incorrect" | "ungraded";
+
+interface StudyConfiguration {
+  problemCount: number;
+  topicId?: number;
+}
 
 function isAutomaticallyGraded(problemType: ProblemType) {
   return problemType === "multiple_choice" || problemType === "true_false";
@@ -37,7 +47,7 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   const questionRef = useRef<HTMLHeadingElement>(null);
   const requestController = useRef<AbortController | null>(null);
 
-  const [stage, setStage] = useState<StudyStage>("setup");
+  const [stage, setStage] = useState<StudyStage>("loading");
   const [scope, setScope] = useState<StudyScope>("all");
   const [topicId, setTopicId] = useState<number | "">(topics[0]?.id ?? "");
   const [count, setCount] = useState("");
@@ -71,10 +81,6 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   const ungradedCount = gradeResults.filter((result) => result === "ungraded").length;
 
   useEffect(() => {
-    return () => requestController.current?.abort();
-  }, []);
-
-  useEffect(() => {
     if (stage === "study") questionRef.current?.focus();
   }, [currentIndex, stage]);
 
@@ -84,7 +90,108 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
     setError(null);
   };
 
-  const loadProblemSet = async () => {
+  const loadProblemSet = useCallback(async (
+    configuration: StudyConfiguration,
+    saveSettings: boolean,
+  ) => {
+    const configuredTopic = configuration.topicId === undefined
+      ? undefined
+      : topics.find((topic) => topic.id === configuration.topicId);
+    if (configuration.topicId !== undefined && !configuredTopic) {
+      setScope("all");
+      setTopicId(topics[0]?.id ?? "");
+      setCount(String(configuration.problemCount));
+      setStage("setup");
+      setError("저장된 주제를 찾을 수 없습니다.");
+      return;
+    }
+
+    setScope(configuredTopic ? "topic" : "all");
+    setTopicId(configuredTopic?.id ?? topics[0]?.id ?? "");
+    setCount(String(configuration.problemCount));
+
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    setStage("loading");
+    setError(null);
+
+    try {
+      const result = await problemApi.random(card.id, {
+        count: configuration.problemCount,
+        topicId: configuredTopic?.id,
+        signal: controller.signal,
+      });
+      if (result.length === 0) {
+        setStage("setup");
+        setError(
+          configuredTopic
+            ? `‘${configuredTopic.name}’ 주제에 등록된 문제가 없습니다.`
+            : "이 카드에 등록된 문제가 없습니다.",
+        );
+        return;
+      }
+
+      if (saveSettings) {
+        await randomStudySettingsApi.save(
+          card.id,
+          {
+            problem_count: configuration.problemCount,
+            topic_id: configuredTopic?.id ?? null,
+          },
+          controller.signal,
+        );
+      }
+
+      setProblems(result);
+      setRequestedCount(configuration.problemCount);
+      setCurrentIndex(0);
+      setResults({});
+      setUserAnswer("");
+      setShowAnswer(false);
+      setError(null);
+      setStage("study");
+    } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+      setStage("setup");
+      setError(getErrorMessage(requestError));
+    }
+  }, [card.id, topics]);
+
+  useEffect(() => {
+    const initialize = async () => {
+      requestController.current?.abort();
+      const controller = new AbortController();
+      requestController.current = controller;
+      setStage("loading");
+      setError(null);
+
+      try {
+        const savedSettings = await randomStudySettingsApi.get(card.id, controller.signal);
+        if (savedSettings === null) {
+          setStage("setup");
+          return;
+        }
+        await loadProblemSet(
+          {
+            problemCount: savedSettings.problem_count,
+            topicId: savedSettings.topic_id ?? undefined,
+          },
+          false,
+        );
+      } catch (requestError) {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        setStage("setup");
+        setError(getErrorMessage(requestError));
+      }
+    };
+
+    void initialize();
+    return () => requestController.current?.abort();
+  }, [card.id, loadProblemSet]);
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     const parsedCount = Number(count);
     if (!Number.isInteger(parsedCount) || parsedCount < 1 || parsedCount > 100) {
       setError("문제 개수는 1부터 100 사이의 정수로 입력해 주세요.");
@@ -95,44 +202,13 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
       return;
     }
 
-    requestController.current?.abort();
-    const controller = new AbortController();
-    requestController.current = controller;
-    setStage("loading");
-    setError(null);
-
-    try {
-      const result = await problemApi.random(card.id, {
-        count: parsedCount,
+    void loadProblemSet(
+      {
+        problemCount: parsedCount,
         topicId: selectedTopic?.id,
-        signal: controller.signal,
-      });
-      if (result.length === 0) {
-        setStage("setup");
-        setError(
-          selectedTopic
-            ? `‘${selectedTopic.name}’ 주제에 등록된 문제가 없습니다.`
-            : "이 카드에 등록된 문제가 없습니다.",
-        );
-        return;
-      }
-
-      setProblems(result);
-      setRequestedCount(parsedCount);
-      setCurrentIndex(0);
-      setResults({});
-      resetCurrentAnswer();
-      setStage("study");
-    } catch (requestError) {
-      if (requestError instanceof DOMException && requestError.name === "AbortError") return;
-      setStage("setup");
-      setError(getErrorMessage(requestError));
-    }
-  };
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    void loadProblemSet();
+      },
+      true,
+    );
   };
 
   const recordResult = (result: GradeResult) => {
@@ -178,6 +254,7 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   };
 
   const handleChangeSettings = () => {
+    requestController.current?.abort();
     setStage("setup");
     setProblems([]);
     setCurrentIndex(0);
@@ -397,6 +474,13 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
           </article>
 
           <div className="study-actions">
+            <button
+              className="button button--ghost"
+              type="button"
+              onClick={handleChangeSettings}
+            >
+              설정 변경
+            </button>
             {currentResult ? (
               <button className="button button--primary" type="button" onClick={handleNext}>
                 {currentIndex === problems.length - 1 ? "채점 결과 보기" : "다음 문제"}
@@ -442,7 +526,17 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
             <button className="button button--ghost" type="button" onClick={handleChangeSettings}>
               설정 변경
             </button>
-            <button className="button button--primary" type="button" onClick={() => void loadProblemSet()}>
+            <button
+              className="button button--primary"
+              type="button"
+              onClick={() => void loadProblemSet(
+                {
+                  problemCount: requestedCount,
+                  topicId: selectedTopic?.id,
+                },
+                false,
+              )}
+            >
               같은 설정으로 다시 뽑기
             </button>
           </div>

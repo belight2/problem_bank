@@ -8,6 +8,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.problem import Problem
+    from app.models.random_study_setting import RandomStudySetting
     from app.models.topic import Topic
 
 
@@ -27,4 +28,9 @@ class Card(Base):
     )
     topics: Mapped[list["Topic"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
+    )
+    random_study_setting: Mapped["RandomStudySetting | None"] = relationship(
+        back_populates="card",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
