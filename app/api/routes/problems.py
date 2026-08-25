@@ -1,16 +1,27 @@
+import random
+from datetime import UTC, datetime
 from typing import Annotated
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.dependencies import DatabaseSession
 from app.models.card import Card
 from app.models.problem import Problem
+from app.models.study_session import StudySession
 from app.models.topic import Topic
-from app.schemas.problem import ProblemCreate, ProblemRead, ProblemUpdate
+from app.schemas.problem import (
+    ProblemCreate,
+    ProblemRead,
+    ProblemUpdate,
+    RandomProblemSetRead,
+    StudyResultsRead,
+    StudyResultsWrite,
+)
 
 router = APIRouter(prefix="/cards/{card_id}/problems", tags=["problems"])
 
@@ -43,6 +54,24 @@ def get_topic_for_card_or_404(card_id: int, topic_id: int, db: Session) -> Topic
     return topic
 
 
+def calculate_problem_weight(problem: Problem) -> float:
+    graded_count = problem.correct_count + problem.incorrect_count
+    mistake_rate = (problem.incorrect_count + 1) / (graded_count + 2)
+    exposure_bonus = 2 / (problem.presented_count + 1)
+    return 1 + (6 * mistake_rate) + exposure_bonus
+
+
+def choose_weighted_problems(problems: list[Problem], limit: int) -> list[Problem]:
+    pool = list(problems)
+    selected: list[Problem] = []
+    while pool and len(selected) < limit:
+        weights = [calculate_problem_weight(problem) for problem in pool]
+        chosen = random.choices(pool, weights=weights, k=1)[0]
+        selected.append(chosen)
+        pool.remove(chosen)
+    return selected
+
+
 @router.post("", response_model=ProblemRead, status_code=status.HTTP_201_CREATED)
 def create_problem(card_id: int, payload: ProblemCreate, db: DatabaseSession) -> Problem:
     ensure_card_exists(card_id, db)
@@ -73,13 +102,13 @@ def list_problems(
     return list(db.scalars(statement).all())
 
 
-@router.get("/random", response_model=list[ProblemRead])
+@router.post("/random", response_model=RandomProblemSetRead)
 def get_random_problems(
     card_id: int,
     db: DatabaseSession,
     topic_id: Annotated[int | None, Query(gt=0)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 1,
-) -> list[Problem]:
+) -> dict[str, str | None | list[Problem]]:
     ensure_card_exists(card_id, db)
     statement = (
         select(Problem).options(selectinload(Problem.topic)).where(Problem.card_id == card_id)
@@ -87,8 +116,83 @@ def get_random_problems(
     if topic_id is not None:
         statement = statement.where(Problem.topic_id == topic_id)
 
-    statement = statement.order_by(func.random()).limit(limit)
-    return list(db.scalars(statement).all())
+    eligible_problems = list(db.scalars(statement).all())
+    selected_problems = choose_weighted_problems(eligible_problems, limit)
+    if not selected_problems:
+        return {"session_id": None, "problems": []}
+
+    session_id = str(uuid4())
+    for problem in selected_problems:
+        problem.presented_count += 1
+    db.add(
+        StudySession(
+            id=session_id,
+            card_id=card_id,
+            problem_ids=[problem.id for problem in selected_problems],
+        )
+    )
+    db.commit()
+    return {"session_id": session_id, "problems": selected_problems}
+
+
+@router.post("/random/{session_id}/results", response_model=StudyResultsRead)
+def record_study_results(
+    card_id: int,
+    session_id: str,
+    payload: StudyResultsWrite,
+    db: DatabaseSession,
+) -> dict[str, str | list[Problem]]:
+    ensure_card_exists(card_id, db)
+    session = db.scalar(
+        select(StudySession)
+        .where(
+            StudySession.id == session_id,
+            StudySession.card_id == card_id,
+        )
+        .with_for_update()
+    )
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Study session not found",
+        )
+    submitted_problem_ids = {result.problem_id for result in payload.results}
+    expected_problem_ids = set(session.problem_ids)
+    if submitted_problem_ids != expected_problem_ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Results must include every problem in the study session",
+        )
+
+    problems = list(
+        db.scalars(
+            select(Problem).where(
+                Problem.card_id == card_id,
+                Problem.id.in_(expected_problem_ids),
+            )
+        ).all()
+    )
+    if len(problems) != len(expected_problem_ids):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A problem in the study session no longer exists",
+        )
+    if session.completed_at is not None:
+        return {"status": "already_recorded", "problems": problems}
+
+    result_by_problem_id = {
+        result.problem_id: result.result for result in payload.results
+    }
+    for problem in problems:
+        result = result_by_problem_id[problem.id]
+        if result == "correct":
+            problem.correct_count += 1
+        elif result == "incorrect":
+            problem.incorrect_count += 1
+
+    session.completed_at = datetime.now(UTC)
+    db.commit()
+    return {"status": "recorded", "problems": problems}
 
 
 @router.get("/{problem_id}", response_model=ProblemRead)

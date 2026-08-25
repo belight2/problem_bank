@@ -38,6 +38,10 @@ class Problem(Base):
             "('short_answer', 'essay', 'multiple_choice', 'true_false', 'fill_blank')",
             name="ck_problems_problem_type",
         ),
+        CheckConstraint(
+            "presented_count >= 0 AND correct_count >= 0 AND incorrect_count >= 0",
+            name="ck_problems_study_counts_nonnegative",
+        ),
         ForeignKeyConstraint(
             ["card_id", "topic_id"],
             ["topics.card_id", "topics.id"],
@@ -58,6 +62,9 @@ class Problem(Base):
     )
     choices: Mapped[list[str] | None] = mapped_column(JSON)
     answer: Mapped[str | None] = mapped_column(Text)
+    presented_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    correct_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    incorrect_count: Mapped[int] = mapped_column(default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

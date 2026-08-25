@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
@@ -96,5 +96,34 @@ class ProblemRead(BaseModel):
     problem_type: ProblemType
     choices: list[str] | None
     answer: str | None
+    presented_count: int
+    correct_count: int
+    incorrect_count: int
     created_at: datetime
     updated_at: datetime
+
+
+class RandomProblemSetRead(BaseModel):
+    session_id: str | None
+    problems: list[ProblemRead]
+
+
+class StudyResultWrite(BaseModel):
+    problem_id: int = Field(gt=0)
+    result: Literal["correct", "incorrect", "ungraded"]
+
+
+class StudyResultsWrite(BaseModel):
+    results: list[StudyResultWrite] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_unique_problem_ids(self) -> Self:
+        problem_ids = [result.problem_id for result in self.results]
+        if len(problem_ids) != len(set(problem_ids)):
+            raise ValueError("Study results must not contain duplicate problem IDs")
+        return self
+
+
+class StudyResultsRead(BaseModel):
+    status: Literal["recorded", "already_recorded"]
+    problems: list[ProblemRead]

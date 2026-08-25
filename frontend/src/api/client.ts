@@ -3,10 +3,12 @@ import type {
   CardInput,
   Problem,
   ProblemInput,
+  RandomProblemSet,
   RandomStudyPreset,
   RandomStudyPresetInput,
   RandomStudySettings,
   RandomStudySettingsInput,
+  StudyResultInput,
   Topic,
   TopicInput,
 } from "../types";
@@ -95,10 +97,26 @@ export const problemApi = {
   ) => {
     const params = new URLSearchParams({ limit: String(options.count) });
     if (options.topicId !== undefined) params.set("topic_id", String(options.topicId));
-    return request<Problem[]>(`/cards/${cardId}/problems/random?${params.toString()}`, {
+    return request<RandomProblemSet>(`/cards/${cardId}/problems/random?${params.toString()}`, {
+      method: "POST",
       signal: options.signal,
     });
   },
+  recordStudyResults: (
+    cardId: number,
+    sessionId: string,
+    results: StudyResultInput[],
+  ) =>
+    request<{
+      status: "recorded" | "already_recorded";
+      problems: Problem[];
+    }>(
+      `/cards/${cardId}/problems/random/${sessionId}/results`,
+      {
+        method: "POST",
+        body: JSON.stringify({ results }),
+      },
+    ),
   create: (cardId: number, input: ProblemInput) =>
     request<Problem>(`/cards/${cardId}/problems`, {
       method: "POST",

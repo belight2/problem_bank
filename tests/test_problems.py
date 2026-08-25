@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.api.routes.problems import calculate_problem_weight
 from app.models.problem import Problem
 from app.models.topic import Topic
 
@@ -90,23 +91,27 @@ def test_problem_crud_topic_filter_and_random(client: TestClient) -> None:
     assert {problem["topic_id"] for problem in topic_response.json()} == {database_topic["id"]}
     assert len(topic_response.json()) == 2
 
-    random_response = client.get(
+    random_response = client.post(
         f"/cards/{card_id}/problems/random",
         params={"limit": 2},
     )
     assert random_response.status_code == 200
-    random_problems = random_response.json()
+    random_payload = random_response.json()
+    assert random_payload["session_id"] is not None
+    random_problems = random_payload["problems"]
     random_problem_ids = [problem["id"] for problem in random_problems]
     assert len(random_problem_ids) == 2
     assert len(set(random_problem_ids)) == 2
     assert {problem["card_id"] for problem in random_problems} == {card_id}
 
-    random_topic_response = client.get(
+    random_topic_response = client.post(
         f"/cards/{card_id}/problems/random",
         params={"topic_id": network_topic["id"], "limit": 10},
     )
     assert random_topic_response.status_code == 200
-    assert [problem["id"] for problem in random_topic_response.json()] == [network_problem["id"]]
+    assert [problem["id"] for problem in random_topic_response.json()["problems"]] == [
+        network_problem["id"]
+    ]
 
     communication_topic = create_topic(client, card_id, "통신")
     update_response = client.patch(
@@ -211,12 +216,97 @@ def test_card_delete_cascades_to_problems(
 
 def test_problem_list_and_random_for_missing_or_empty_card(client: TestClient) -> None:
     assert client.get("/cards/999/problems").status_code == 404
-    assert client.get("/cards/999/problems/random").status_code == 404
+    assert client.post("/cards/999/problems/random").status_code == 404
 
     card_id = create_card(client)
-    response = client.get(f"/cards/{card_id}/problems/random")
+    response = client.post(f"/cards/{card_id}/problems/random")
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json() == {"session_id": None, "problems": []}
+
+
+def test_study_statistics_are_recorded_once_per_session(client: TestClient) -> None:
+    card_id = create_card(client)
+    topic = create_topic(client, card_id, "데이터베이스")
+    first_problem = create_problem(
+        client,
+        card_id,
+        topic["id"],
+        "정규화란?",
+    )
+    second_problem = create_problem(
+        client,
+        card_id,
+        topic["id"],
+        "트랜잭션이란?",
+    )
+
+    study_set = client.post(
+        f"/cards/{card_id}/problems/random",
+        params={"limit": 2},
+    )
+    assert study_set.status_code == 200
+    study_payload = study_set.json()
+    assert study_payload["session_id"] is not None
+    assert {problem["presented_count"] for problem in study_payload["problems"]} == {1}
+
+    results = [
+        {"problem_id": first_problem["id"], "result": "correct"},
+        {"problem_id": second_problem["id"], "result": "incorrect"},
+    ]
+    record_url = (
+        f"/cards/{card_id}/problems/random/{study_payload['session_id']}/results"
+    )
+    recorded = client.post(record_url, json={"results": results})
+    assert recorded.status_code == 200
+    assert recorded.json()["status"] == "recorded"
+    assert len(recorded.json()["problems"]) == 2
+
+    first_saved = client.get(
+        f"/cards/{card_id}/problems/{first_problem['id']}"
+    ).json()
+    second_saved = client.get(
+        f"/cards/{card_id}/problems/{second_problem['id']}"
+    ).json()
+    assert (first_saved["presented_count"], first_saved["correct_count"]) == (1, 1)
+    assert first_saved["incorrect_count"] == 0
+    assert (second_saved["presented_count"], second_saved["incorrect_count"]) == (1, 1)
+    assert second_saved["correct_count"] == 0
+
+    repeated = client.post(record_url, json={"results": results})
+    assert repeated.status_code == 200
+    assert repeated.json()["status"] == "already_recorded"
+    assert len(repeated.json()["problems"]) == 2
+    assert client.get(
+        f"/cards/{card_id}/problems/{first_problem['id']}"
+    ).json()["correct_count"] == 1
+
+
+def test_study_results_must_match_session_problem_set(client: TestClient) -> None:
+    card_id = create_card(client)
+    topic = create_topic(client, card_id, "데이터베이스")
+    problem = create_problem(client, card_id, topic["id"], "기본키란?")
+    study_payload = client.post(
+        f"/cards/{card_id}/problems/random",
+        params={"limit": 1},
+    ).json()
+
+    response = client.post(
+        f"/cards/{card_id}/problems/random/{study_payload['session_id']}/results",
+        json={"results": [{"problem_id": problem["id"] + 100, "result": "correct"}]},
+    )
+    assert response.status_code == 422
+    saved = client.get(f"/cards/{card_id}/problems/{problem['id']}").json()
+    assert saved["correct_count"] == 0
+    assert saved["incorrect_count"] == 0
+
+
+def test_problem_weight_prioritizes_weak_and_underexposed_problems() -> None:
+    unseen = Problem(presented_count=0, correct_count=0, incorrect_count=0)
+    weak = Problem(presented_count=10, correct_count=1, incorrect_count=9)
+    mastered = Problem(presented_count=10, correct_count=9, incorrect_count=1)
+
+    assert calculate_problem_weight(weak) > calculate_problem_weight(unseen)
+    assert calculate_problem_weight(unseen) > calculate_problem_weight(mastered)
 
 
 def test_problem_types_and_choice_normalization(client: TestClient) -> None:

@@ -27,10 +27,17 @@ import { ProblemPrompt } from "./ProblemPrompt";
 interface RandomStudyModalProps {
   card: Card;
   topics: Topic[];
+  onStatisticsChanged: (problems: Problem[]) => void;
   onClose: () => void;
 }
 
-type StudyStage = "loading" | "overview" | "settings" | "study" | "complete";
+type StudyStage =
+  | "loading"
+  | "overview"
+  | "settings"
+  | "study"
+  | "grading"
+  | "complete";
 type StudyScope = "all" | "topic";
 type GradeResult = "correct" | "incorrect" | "ungraded";
 
@@ -44,14 +51,18 @@ function isAutomaticallyGraded(problemType: ProblemType) {
   return problemType === "multiple_choice" || problemType === "true_false";
 }
 
-export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProps) {
+export function RandomStudyModal({
+  card,
+  topics,
+  onStatisticsChanged,
+  onClose,
+}: RandomStudyModalProps) {
   const allScopeId = useId();
   const topicScopeId = useId();
   const topicSelectId = useId();
   const countId = useId();
   const presetNameId = useId();
   const presetDescriptionId = useId();
-  const answerId = useId();
   const userAnswerId = useId();
   const responseName = useId();
   const questionRef = useRef<HTMLHeadingElement>(null);
@@ -74,9 +85,10 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   const [busy, setBusy] = useState(false);
   const [requestedCount, setRequestedCount] = useState(0);
   const [problems, setProblems] = useState<Problem[]>([]);
+  const [studySessionId, setStudySessionId] = useState<string | null>(null);
+  const [submittingResults, setSubmittingResults] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [userAnswer, setUserAnswer] = useState("");
-  const [showAnswer, setShowAnswer] = useState(false);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
   const [results, setResults] = useState<Record<number, GradeResult>>({});
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState("설정을 불러오는 중…");
@@ -86,10 +98,7 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   const selectedTopic =
     scope === "topic" ? topics.find((topic) => topic.id === topicId) : undefined;
   const currentProblem = problems[currentIndex] ?? null;
-  const currentResult = currentProblem ? (results[currentProblem.id] ?? null) : null;
-  const automaticGrading = currentProblem
-    ? isAutomaticallyGraded(currentProblem.problem_type)
-    : false;
+  const currentAnswer = currentProblem ? (answers[currentProblem.id] ?? "") : "";
   const responseOptions = currentProblem
     ? currentProblem.problem_type === "multiple_choice"
       ? (currentProblem.choices ?? [])
@@ -97,12 +106,12 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
         ? ["O", "X"]
         : null
     : null;
-  const automaticGradingReady =
-    automaticGrading && Boolean(currentProblem?.answer) && Boolean(responseOptions?.length);
   const gradeResults = Object.values(results);
   const correctCount = gradeResults.filter((result) => result === "correct").length;
   const incorrectCount = gradeResults.filter((result) => result === "incorrect").length;
   const ungradedCount = gradeResults.filter((result) => result === "ungraded").length;
+  const gradingComplete =
+    problems.length > 0 && problems.every((problem) => results[problem.id] !== undefined);
 
   const applyConfiguration = useCallback((configuration: StudyConfiguration) => {
     const configuredTopic = configuration.topicId === undefined
@@ -176,12 +185,6 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
     return () => controller.abort();
   }, [applyConfiguration, card.id]);
 
-  const resetCurrentAnswer = () => {
-    setUserAnswer("");
-    setShowAnswer(false);
-    setError(null);
-  };
-
   const loadProblemSet = async (configuration: StudyConfiguration) => {
     const configuredTopic = configuration.topicId === undefined
       ? undefined
@@ -197,6 +200,7 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
     requestController.current = controller;
     setLoadingMessage("문제를 불러오는 중…");
     setStage("loading");
+    setStudySessionId(null);
     setError(null);
 
     try {
@@ -214,7 +218,7 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
         topicId: savedSettings.topic_id ?? undefined,
         signal: controller.signal,
       });
-      if (result.length === 0) {
+      if (result.problems.length === 0 || result.session_id === null) {
         setStage("overview");
         setError(
           configuredTopic
@@ -229,12 +233,13 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
         topicId: savedSettings.topic_id ?? undefined,
         presetId: savedSettings.preset_id,
       });
-      setProblems(result);
+      setProblems(result.problems);
+      setStudySessionId(result.session_id);
+      onStatisticsChanged(result.problems);
       setRequestedCount(savedSettings.problem_count);
       setCurrentIndex(0);
+      setAnswers({});
       setResults({});
-      setUserAnswer("");
-      setShowAnswer(false);
       setError(null);
       setStage("study");
     } catch (requestError) {
@@ -380,49 +385,77 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
     }
   };
 
-  const recordResult = (result: GradeResult) => {
+  const updateCurrentAnswer = (answer: string) => {
     if (!currentProblem) return;
-    setResults((current) => ({ ...current, [currentProblem.id]: result }));
+    setAnswers((current) => ({ ...current, [currentProblem.id]: answer }));
+    setError(null);
   };
 
-  const handleAutomaticGrade = () => {
-    if (!currentProblem || !automaticGradingReady) return;
-    if (!userAnswer) {
-      setError("답을 선택해 주세요.");
+  const startBatchGrading = () => {
+    const automaticResults: Record<number, GradeResult> = {};
+    problems.forEach((problem) => {
+      if (!isAutomaticallyGraded(problem.problem_type)) return;
+      const answer = answers[problem.id] ?? "";
+      automaticResults[problem.id] = problem.answer
+        ? answer === problem.answer
+          ? "correct"
+          : "incorrect"
+        : "ungraded";
+    });
+    setResults(automaticResults);
+    setError(null);
+    setStage("grading");
+  };
+
+  const handleNextAnswer = () => {
+    if (!currentProblem || !currentAnswer.trim()) {
+      setError("답을 입력하거나 선택해 주세요.");
       return;
     }
-    setError(null);
-    setShowAnswer(true);
-    recordResult(userAnswer === currentProblem.answer ? "correct" : "incorrect");
-  };
-
-  const handleRevealForManualGrade = () => {
-    if (!userAnswer.trim()) {
-      setError("내 답안을 입력해 주세요.");
-      return;
-    }
-    setError(null);
-    setShowAnswer(true);
-  };
-
-  const handleSkipAutomaticGrade = () => {
-    setShowAnswer(true);
-    setError(null);
-    recordResult("ungraded");
-  };
-
-  const handleNext = () => {
-    if (currentResult === null) return;
     if (currentIndex >= problems.length - 1) {
-      setStage("complete");
+      startBatchGrading();
       return;
     }
-    resetCurrentAnswer();
+    setError(null);
     setCurrentIndex((current) => current + 1);
+  };
+
+  const handlePreviousAnswer = () => {
+    if (currentIndex === 0) return;
+    setError(null);
+    setCurrentIndex((current) => current - 1);
+  };
+
+  const recordManualResult = (problemId: number, result: GradeResult) => {
+    setResults((current) => ({ ...current, [problemId]: result }));
+  };
+
+  const handleCompleteGrading = async () => {
+    if (!gradingComplete || !studySessionId) return;
+    setSubmittingResults(true);
+    setError(null);
+    try {
+      const recorded = await problemApi.recordStudyResults(
+        card.id,
+        studySessionId,
+        problems.map((problem) => ({
+          problem_id: problem.id,
+          result: results[problem.id] ?? "ungraded",
+        })),
+      );
+      onStatisticsChanged(recorded.problems);
+      setStage("complete");
+    } catch (submitError) {
+      setError(getErrorMessage(submitError));
+    } finally {
+      setSubmittingResults(false);
+    }
   };
 
   const modalTitle = stage === "settings"
     ? "랜덤 문제 설정"
+    : stage === "grading"
+      ? "전체 문제 채점"
     : stage === "complete"
       ? "문제 묶음 완료"
       : "랜덤 문제 풀기";
@@ -676,9 +709,8 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
                         type="radio"
                         name={responseName}
                         value={option}
-                        checked={userAnswer === option}
-                        onChange={(event) => setUserAnswer(event.target.value)}
-                        disabled={currentResult !== null || !automaticGradingReady}
+                        checked={currentAnswer === option}
+                        onChange={(event) => updateCurrentAnswer(event.target.value)}
                       />
                       <span>
                         {currentProblem.problem_type === "multiple_choice" && (
@@ -696,88 +728,133 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
                 {currentProblem.problem_type === "essay" ? (
                   <textarea
                     id={userAnswerId}
-                    value={userAnswer}
-                    onChange={(event) => setUserAnswer(event.target.value)}
+                    value={currentAnswer}
+                    onChange={(event) => updateCurrentAnswer(event.target.value)}
                     placeholder="생각한 답을 직접 작성해 주세요."
                     rows={5}
-                    disabled={showAnswer || currentResult !== null}
                   />
                 ) : (
                   <input
                     id={userAnswerId}
-                    value={userAnswer}
-                    onChange={(event) => setUserAnswer(event.target.value)}
+                    value={currentAnswer}
+                    onChange={(event) => updateCurrentAnswer(event.target.value)}
                     placeholder={
                       currentProblem.problem_type === "fill_blank"
                         ? "빈칸에 들어갈 개념을 입력해 주세요."
                         : "생각한 답을 입력해 주세요."
                     }
-                    disabled={showAnswer || currentResult !== null}
                   />
                 )}
               </label>
             )}
 
-            {automaticGrading && !automaticGradingReady && currentResult === null && (
-              <p className="study-notice study-notice--inside" role="alert">
-                이 문제는 정답 또는 선택지가 없어 자동 채점할 수 없습니다. 문제를 수정해 주세요.
-              </p>
-            )}
-
             {error && <p className="form-error study-form-error" role="alert">{error}</p>}
-
-            {showAnswer && (
-              <div className="study-answer" id={answerId}>
-                <span>{automaticGrading ? "정답" : "기준 답안 · 해설"}</span>
-                <p>{currentProblem.answer || "등록된 기준 답안이나 해설이 없습니다."}</p>
-              </div>
-            )}
-
-            {currentResult && (
-              <div className={`study-grade-result study-grade-result--${currentResult}`} role="status">
-                <strong>
-                  {currentResult === "correct"
-                    ? "정답입니다"
-                    : currentResult === "incorrect"
-                      ? "오답입니다"
-                      : "채점에서 제외했습니다"}
-                </strong>
-              </div>
-            )}
           </article>
 
           <div className="study-actions">
-            <button className="button button--ghost" type="button" onClick={openSettings}>
-              설정
+            <button
+              className="button button--ghost"
+              type="button"
+              onClick={handlePreviousAnswer}
+              disabled={currentIndex === 0}
+            >
+              이전 문제
             </button>
-            {currentResult ? (
-              <button className="button button--primary" type="button" onClick={handleNext}>
-                {currentIndex === problems.length - 1 ? "채점 결과 보기" : "다음 문제"}
-              </button>
-            ) : automaticGrading ? (
-              automaticGradingReady ? (
-                <button className="button button--primary" type="button" onClick={handleAutomaticGrade}>
-                  채점하기
-                </button>
-              ) : (
-                <button className="button button--secondary" type="button" onClick={handleSkipAutomaticGrade}>
-                  채점 제외
-                </button>
-              )
-            ) : showAnswer ? (
-              <>
-                <button className="button button--danger-ghost" type="button" onClick={() => recordResult("incorrect")}>
-                  오답으로 기록
-                </button>
-                <button className="button button--primary" type="button" onClick={() => recordResult("correct")}>
-                  정답으로 기록
-                </button>
-              </>
-            ) : (
-              <button className="button button--secondary" type="button" onClick={handleRevealForManualGrade}>
-                답안 확인
-              </button>
-            )}
+            <button className="button button--primary" type="button" onClick={handleNextAnswer}>
+              {currentIndex === problems.length - 1 ? "답안 제출" : "다음 문제"}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {stage === "grading" && (
+        <section className="batch-grading" aria-live="polite">
+          <div className="batch-grading-heading">
+            <strong>전체 {problems.length}문제</strong>
+            <span>{Object.keys(results).length} / {problems.length} 채점 완료</span>
+          </div>
+
+          <div className="batch-grading-list">
+            {problems.map((problem, index) => {
+              const automatic = isAutomaticallyGraded(problem.problem_type);
+              const result = results[problem.id];
+              return (
+                <article className="batch-grade-card" key={problem.id}>
+                  <div className="batch-grade-card-heading">
+                    <span className="batch-grade-number">{String(index + 1).padStart(2, "0")}</span>
+                    <div className="study-problem-meta">
+                      <span className="topic-badge">{problem.topic_name}</span>
+                      <span className="problem-type-badge">
+                        {problemTypeLabels[problem.problem_type]}
+                      </span>
+                    </div>
+                  </div>
+                  <h3><ProblemPrompt problem={problem} /></h3>
+                  <div className="batch-grade-answers">
+                    <div>
+                      <span>내 답</span>
+                      <p>{answers[problem.id]}</p>
+                    </div>
+                    <div>
+                      <span>{automatic ? "정답" : "기준 답안 · 해설"}</span>
+                      <p>{problem.answer || "등록된 기준 답안이나 해설이 없습니다."}</p>
+                    </div>
+                  </div>
+
+                  {automatic ? (
+                    <div className={`study-grade-result study-grade-result--${result}`} role="status">
+                      <strong>
+                        {result === "correct"
+                          ? "정답"
+                          : result === "incorrect"
+                            ? "오답"
+                            : "채점 제외"}
+                      </strong>
+                    </div>
+                  ) : (
+                    <div className="manual-grade-actions" aria-label={`${index + 1}번 문제 직접 채점`}>
+                      <button
+                        className={result === "incorrect" ? "is-selected is-incorrect" : ""}
+                        type="button"
+                        onClick={() => recordManualResult(problem.id, "incorrect")}
+                      >
+                        오답
+                      </button>
+                      <button
+                        className={result === "correct" ? "is-selected is-correct" : ""}
+                        type="button"
+                        onClick={() => recordManualResult(problem.id, "correct")}
+                      >
+                        정답
+                      </button>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="study-actions batch-grading-actions">
+            {error && <p className="form-error batch-grading-error" role="alert">{error}</p>}
+            <button
+              className="button button--ghost"
+              type="button"
+              onClick={() => {
+                setCurrentIndex(problems.length - 1);
+                setStage("study");
+              }}
+              disabled={submittingResults}
+            >
+              답안 수정
+            </button>
+            <button
+              className="button button--primary"
+              type="button"
+              onClick={() => void handleCompleteGrading()}
+              disabled={!gradingComplete || submittingResults}
+            >
+              {submittingResults ? "기록 중…" : "채점 완료"}
+            </button>
           </div>
         </section>
       )}

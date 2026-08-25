@@ -725,10 +725,27 @@ main {
   gap: 0.5rem;
 }
 
-.problem-meta > span:last-child {
+.problem-date {
   color: var(--text-faint);
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.7rem;
+}
+
+.problem-statistics {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+  color: var(--text-faint);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.problem-statistics strong {
+  color: var(--text-soft);
+  font-weight: 700;
 }
 
 .topic-badge,
@@ -1929,6 +1946,151 @@ footer {
   font-size: 0.9rem;
 }
 
+.batch-grading {
+  display: grid;
+  gap: 1rem;
+  animation: page-enter 300ms ease-out both;
+}
+
+.batch-grading-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.batch-grading-heading strong {
+  font-size: 0.9rem;
+}
+
+.batch-grading-heading span {
+  color: var(--text-soft);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+
+.batch-grading-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.batch-grade-card {
+  padding: clamp(1rem, 3vw, 1.4rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  animation: list-enter 320ms ease-out both;
+}
+
+.batch-grade-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.batch-grade-number {
+  color: var(--primary-strong);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.batch-grade-card h3 {
+  margin: 1rem 0;
+  font-size: 1.15rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.batch-grade-answers {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.batch-grade-answers > div {
+  min-width: 0;
+  padding: 0.9rem;
+  border-right: 1px solid var(--border);
+}
+
+.batch-grade-answers > div:last-child {
+  border-right: 0;
+}
+
+.batch-grade-answers span {
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.batch-grade-answers p {
+  margin: 0.45rem 0 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.manual-grade-actions {
+  display: grid;
+  margin-top: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.manual-grade-actions button {
+  min-height: 42px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-soft);
+  font-weight: 650;
+  transition: transform 100ms ease, border-color 100ms ease, background-color 100ms ease;
+}
+
+.manual-grade-actions button:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.manual-grade-actions button:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.manual-grade-actions button.is-incorrect {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger-strong);
+}
+
+.manual-grade-actions button.is-correct {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.batch-grading-actions {
+  position: sticky;
+  bottom: -1.5rem;
+  z-index: 1;
+  padding: 1rem 0 1.5rem;
+  background: linear-gradient(transparent, var(--surface) 30%);
+}
+
+.batch-grading-error {
+  width: 100%;
+  flex-basis: 100%;
+}
+
 .study-complete {
   display: grid;
   min-height: 340px;
@@ -2152,6 +2314,11 @@ footer {
     grid-column: 2;
   }
 
+  .problem-statistics {
+    width: 100%;
+    margin-left: 0;
+  }
+
   .scope-options,
   .problem-options--true-false {
     grid-template-columns: 1fr;
@@ -2215,7 +2382,8 @@ footer {
 
   .study-config-grid,
   .preset-settings-layout,
-  .preset-value-grid {
+  .preset-value-grid,
+  .batch-grade-answers {
     grid-template-columns: 1fr;
   }
 
@@ -2259,6 +2427,15 @@ footer {
 
   .preset-editor-actions > div {
     flex-direction: column-reverse;
+  }
+
+  .batch-grade-answers > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .batch-grade-answers > div:last-child {
+    border-bottom: 0;
   }
 
   .study-result-summary {

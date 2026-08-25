@@ -191,6 +191,25 @@ function App() {
     setTopics((current) => current.filter((topic) => topic.id !== topicId));
   };
 
+  const handleProblemStatisticsChanged = (updatedProblems: Problem[]) => {
+    const updatesById = new Map(
+      updatedProblems.map((problem) => [problem.id, problem]),
+    );
+    setProblems((current) =>
+      current.map((problem) => {
+        const updated = updatesById.get(problem.id);
+        return updated
+          ? {
+              ...problem,
+              presented_count: updated.presented_count,
+              correct_count: updated.correct_count,
+              incorrect_count: updated.incorrect_count,
+            }
+          : problem;
+      }),
+    );
+  };
+
   const handleDeleteCard = async () => {
     if (!cardToDelete) return;
     await cardApi.remove(cardToDelete.id);
@@ -354,7 +373,17 @@ function App() {
                         <span className="problem-type-badge">
                           {problemTypeLabels[problem.problem_type]}
                         </span>
-                        <span>{dateFormatter.format(new Date(problem.created_at))}</span>
+                        <span className="problem-date">
+                          {dateFormatter.format(new Date(problem.created_at))}
+                        </span>
+                        <span
+                          className="problem-statistics"
+                          aria-label={`출제 ${problem.presented_count}회, 정답 ${problem.correct_count}회, 오답 ${problem.incorrect_count}회`}
+                        >
+                          <span>출제 <strong>{problem.presented_count}</strong></span>
+                          <span>정답 <strong>{problem.correct_count}</strong></span>
+                          <span>오답 <strong>{problem.incorrect_count}</strong></span>
+                        </span>
                       </div>
                       <p className="problem-question">
                         <ProblemPrompt problem={problem} />
@@ -487,6 +516,7 @@ function App() {
         <RandomStudyModal
           card={selectedCard}
           topics={topics}
+          onStatisticsChanged={handleProblemStatisticsChanged}
           onClose={() => setRandomStudyOpen(false)}
         />
       )}

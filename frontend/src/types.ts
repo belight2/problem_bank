@@ -39,6 +39,9 @@ export interface Problem {
   problem_type: ProblemType;
   choices: string[] | null;
   answer: string | null;
+  presented_count: number;
+  correct_count: number;
+  incorrect_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -49,6 +52,16 @@ export interface ProblemInput {
   problem_type: ProblemType;
   choices: string[] | null;
   answer: string | null;
+}
+
+export interface RandomProblemSet {
+  session_id: string | null;
+  problems: Problem[];
+}
+
+export interface StudyResultInput {
+  problem_id: number;
+  result: "correct" | "incorrect" | "ungraded";
 }
 
 export interface RandomStudySettings {

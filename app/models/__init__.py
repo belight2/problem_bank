@@ -2,6 +2,7 @@ from app.models.card import Card
 from app.models.problem import Problem, ProblemType
 from app.models.random_study_preset import RandomStudyPreset
 from app.models.random_study_setting import RandomStudySetting
+from app.models.study_session import StudySession
 from app.models.topic import Topic
 
 __all__ = [
@@ -10,5 +11,6 @@ __all__ = [
     "ProblemType",
     "RandomStudyPreset",
     "RandomStudySetting",
+    "StudySession",
     "Topic",
 ]
