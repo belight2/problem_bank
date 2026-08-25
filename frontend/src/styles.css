@@ -1767,14 +1767,41 @@ footer {
   padding: clamp(1.1rem, 3vw, 1.75rem);
 }
 
-.preset-value-grid {
+.preset-value-stack {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(130px, 0.35fr);
-  gap: 0.8rem;
 }
 
-.preset-value-grid--count-only {
-  grid-template-columns: minmax(130px, 240px);
+.topic-field-reveal {
+  display: grid;
+  min-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px);
+  grid-template-rows: 0fr;
+  transition:
+    grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 140ms ease,
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.topic-field-reveal.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  grid-template-rows: 1fr;
+}
+
+.topic-field-reveal-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.topic-field-reveal .field {
+  padding-bottom: 0.8rem;
+}
+
+.problem-count-field {
+  width: min(100%, 240px);
 }
 
 .preset-editor-actions {
@@ -2444,7 +2471,6 @@ footer {
 
   .study-config-grid,
   .preset-settings-layout,
-  .preset-value-grid,
   .batch-grade-answers {
     grid-template-columns: 1fr;
   }

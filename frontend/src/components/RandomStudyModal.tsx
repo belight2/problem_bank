@@ -722,28 +722,32 @@ export function RandomStudyModal({
               </div>
             </fieldset>
 
-            <div
-              className={`preset-value-grid${scope === "all" ? " preset-value-grid--count-only" : ""}`}
-            >
-              {scope === "topic" && (
-                <label className="field" htmlFor={topicSelectId}>
-                  <span>주제</span>
-                  <select
-                    id={topicSelectId}
-                    value={topicId}
-                    onChange={(event) =>
-                      setTopicId(event.target.value ? Number(event.target.value) : "")
-                    }
-                    required
-                  >
-                    {topics.map((topic) => (
-                      <option key={topic.id} value={topic.id}>{topic.name}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
+            <div className="preset-value-stack">
+              <div
+                className={`topic-field-reveal${scope === "topic" ? " is-visible" : ""}`}
+                aria-hidden={scope !== "topic"}
+              >
+                <div className="topic-field-reveal-inner">
+                  <label className="field" htmlFor={topicSelectId}>
+                    <span>주제</span>
+                    <select
+                      id={topicSelectId}
+                      value={topicId}
+                      onChange={(event) =>
+                        setTopicId(event.target.value ? Number(event.target.value) : "")
+                      }
+                      disabled={scope !== "topic"}
+                      required={scope === "topic"}
+                    >
+                      {topics.map((topic) => (
+                        <option key={topic.id} value={topic.id}>{topic.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
 
-              <label className="field" htmlFor={countId}>
+              <label className="field problem-count-field" htmlFor={countId}>
                 <span>문제 개수</span>
                 <input
                   id={countId}
