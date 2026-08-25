@@ -3,7 +3,7 @@
 React·TypeScript 프론트엔드와 FastAPI 백엔드로 구성한 개인용 문제 은행입니다. PostgreSQL만 Docker Compose로 실행하고 애플리케이션은 로컬 환경에서 실행합니다.
 
 ```text
-React (localhost:5173) → FastAPI (localhost:8000) → PostgreSQL (localhost:25431)
+React (localhost:5571) → FastAPI (localhost:8899) → PostgreSQL (localhost:25431)
 ```
 
 카드를 만들고 그 안에 주제를 별도로 관리한 뒤 문제에 연결할 수 있습니다. 문제 생성 시 등록된 주제를 선택하므로 문제마다 주제 이름을 다시 입력하면서 생기는 오타를 방지합니다. 문제는 단답형, 주관식, 객관식, O/X, 빈칸 추론 형식으로 만들 수 있으며, 프론트엔드에서는 카드·주제·문제 CRUD와 설정한 개수만큼 문제를 무작위로 제공하는 기능을 사용할 수 있습니다. 객관식과 O/X는 자동 채점하고 나머지 유형은 사용자가 직접 판정합니다.
@@ -34,7 +34,7 @@ docker compose up -d db
 
 uv sync --extra dev
 uv run alembic upgrade head
-uv run uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload --port 8899
 ```
 
 별도 터미널에서 프론트엔드를 실행합니다.
@@ -50,9 +50,9 @@ npm run dev
 
 실행 후 아래 주소로 접속합니다.
 
-- 프론트엔드: `http://localhost:5173`
-- API: `http://localhost:8000`
-- Swagger UI: `http://localhost:8000/docs`
+- 프론트엔드: `http://localhost:5571`
+- API: `http://localhost:8899`
+- Swagger UI: `http://localhost:8899/docs`
 - PostgreSQL: `localhost:25431`
 
 아래부터는 각 단계를 나눠 설명합니다.
@@ -101,18 +101,18 @@ uv run alembic upgrade head
 ### 5. FastAPI 실행
 
 ```bash
-uv run uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload --port 8899
 ```
 
 `pip` 환경에서는 다음 명령을 사용합니다.
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8899
 ```
 
-- API: `http://localhost:8000`
-- Swagger UI: `http://localhost:8000/docs`
-- OpenAPI JSON: `http://localhost:8000/openapi.json`
+- API: `http://localhost:8899`
+- Swagger UI: `http://localhost:8899/docs`
+- OpenAPI JSON: `http://localhost:8899/openapi.json`
 
 ### 6. React 프론트엔드 실행
 
@@ -125,8 +125,8 @@ npm install
 npm run dev
 ```
 
-- 프론트엔드: `http://localhost:5173`
-- 개발 중 `/api` 요청은 Vite 프록시를 통해 `http://localhost:8000`으로 전달됩니다.
+- 프론트엔드: `http://localhost:5571`
+- 개발 중 `/api` 요청은 Vite 프록시를 통해 `http://localhost:8899`로 전달됩니다.
 
 ## 현재 API
 
