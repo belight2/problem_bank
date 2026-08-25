@@ -76,12 +76,7 @@ export function Modal({
   }, []);
 
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(event) => {
-        if (!closeDisabled && event.currentTarget === event.target) onClose();
-      }}
-    >
+    <div className="modal-backdrop">
       <section
         ref={panelRef}
         className={`modal-panel ${size === "wide" ? "modal-panel--wide" : ""}`}
