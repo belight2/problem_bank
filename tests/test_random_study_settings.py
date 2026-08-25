@@ -75,3 +75,36 @@ def test_deleting_selected_topic_falls_back_to_card_scope(client: TestClient) ->
     saved = client.get(f"/cards/{card_id}/random-study-settings")
     assert saved.status_code == 200
     assert saved.json()["topic_id"] is None
+
+
+def test_random_study_settings_save_incorrect_problem_filters(
+    client: TestClient,
+) -> None:
+    card_id = create_card(client, "정보처리기사")
+    response = client.put(
+        f"/cards/{card_id}/random-study-settings",
+        json={
+            "problem_count": 12,
+            "topic_id": None,
+            "selection_mode": "incorrect_rate",
+            "incorrect_rate_threshold": 60,
+            "minimum_attempt_count": 4,
+            "incorrect_count_threshold": 2,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["selection_mode"] == "incorrect_rate"
+    assert response.json()["incorrect_rate_threshold"] == 60
+    assert response.json()["minimum_attempt_count"] == 4
+    assert response.json()["incorrect_count_threshold"] == 2
+
+    invalid = client.put(
+        f"/cards/{card_id}/random-study-settings",
+        json={
+            "problem_count": 10,
+            "selection_mode": "incorrect_count",
+            "incorrect_count_threshold": 0,
+        },
+    )
+    assert invalid.status_code == 422

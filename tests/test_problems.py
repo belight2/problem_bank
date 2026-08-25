@@ -309,6 +309,75 @@ def test_problem_weight_prioritizes_weak_and_underexposed_problems() -> None:
     assert calculate_problem_weight(unseen) > calculate_problem_weight(mastered)
 
 
+def test_random_problem_filters_support_incorrect_rate_and_count(
+    client: TestClient,
+    test_session_factory: sessionmaker[Session],
+) -> None:
+    card_id = create_card(client)
+    topic = create_topic(client, card_id, "데이터베이스")
+    rate_match = create_problem(client, card_id, topic["id"], "오답률 조건 일치")
+    low_rate = create_problem(client, card_id, topic["id"], "낮은 오답률")
+    too_few_attempts = create_problem(client, card_id, topic["id"], "풀이 횟수 부족")
+    count_match = create_problem(client, card_id, topic["id"], "오답 횟수 조건 일치")
+
+    statistics = {
+        rate_match["id"]: (1, 2),
+        low_rate["id"]: (3, 1),
+        too_few_attempts["id"]: (0, 1),
+        count_match["id"]: (8, 3),
+    }
+    with test_session_factory() as session:
+        for problem_id, (correct_count, incorrect_count) in statistics.items():
+            problem = session.get(Problem, problem_id)
+            assert problem is not None
+            problem.correct_count = correct_count
+            problem.incorrect_count = incorrect_count
+        session.commit()
+
+    rate_response = client.post(
+        f"/cards/{card_id}/problems/random",
+        params={
+            "limit": 10,
+            "selection_mode": "incorrect_rate",
+            "incorrect_rate_threshold": 50,
+            "minimum_attempt_count": 3,
+        },
+    )
+    assert rate_response.status_code == 200
+    assert [problem["id"] for problem in rate_response.json()["problems"]] == [rate_match["id"]]
+
+    count_response = client.post(
+        f"/cards/{card_id}/problems/random",
+        params={
+            "limit": 10,
+            "selection_mode": "incorrect_count",
+            "incorrect_count_threshold": 2,
+        },
+    )
+    assert count_response.status_code == 200
+    assert {problem["id"] for problem in count_response.json()["problems"]} == {
+        rate_match["id"],
+        count_match["id"],
+    }
+
+    no_match_response = client.post(
+        f"/cards/{card_id}/problems/random",
+        params={
+            "selection_mode": "incorrect_rate",
+            "incorrect_rate_threshold": 100,
+            "minimum_attempt_count": 3,
+        },
+    )
+    assert no_match_response.status_code == 200
+    assert no_match_response.json() == {"session_id": None, "problems": []}
+
+    invalid_response = client.post(
+        f"/cards/{card_id}/problems/random",
+        params={"selection_mode": "incorrect_rate", "incorrect_rate_threshold": 101},
+    )
+    assert invalid_response.status_code == 422
+
+
 def test_problem_types_and_choice_normalization(client: TestClient) -> None:
     card_id = create_card(client)
     topic = create_topic(client, card_id, "유형 테스트")

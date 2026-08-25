@@ -1,6 +1,6 @@
 import random
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
@@ -108,6 +108,10 @@ def get_random_problems(
     db: DatabaseSession,
     topic_id: Annotated[int | None, Query(gt=0)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 1,
+    selection_mode: Literal["all", "incorrect_rate", "incorrect_count"] = "all",
+    incorrect_rate_threshold: Annotated[int, Query(ge=1, le=100)] = 50,
+    minimum_attempt_count: Annotated[int, Query(ge=1)] = 3,
+    incorrect_count_threshold: Annotated[int, Query(ge=1)] = 1,
 ) -> dict[str, str | None | list[Problem]]:
     ensure_card_exists(card_id, db)
     statement = (
@@ -115,6 +119,15 @@ def get_random_problems(
     )
     if topic_id is not None:
         statement = statement.where(Problem.topic_id == topic_id)
+
+    if selection_mode == "incorrect_rate":
+        graded_count = Problem.correct_count + Problem.incorrect_count
+        statement = statement.where(
+            graded_count >= minimum_attempt_count,
+            Problem.incorrect_count * 100 >= graded_count * incorrect_rate_threshold,
+        )
+    elif selection_mode == "incorrect_count":
+        statement = statement.where(Problem.incorrect_count >= incorrect_count_threshold)
 
     eligible_problems = list(db.scalars(statement).all())
     selected_problems = choose_weighted_problems(eligible_problems, limit)
@@ -180,9 +193,7 @@ def record_study_results(
     if session.completed_at is not None:
         return {"status": "already_recorded", "problems": problems}
 
-    result_by_problem_id = {
-        result.problem_id: result.result for result in payload.results
-    }
+    result_by_problem_id = {result.problem_id: result.result for result in payload.results}
     for problem in problems:
         result = result_by_problem_id[problem.id]
         if result == "correct":

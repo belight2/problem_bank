@@ -103,6 +103,10 @@ def update_random_study_preset(
     if setting is not None and setting.preset_id == preset.id:
         setting.topic_id = preset.topic_id
         setting.problem_count = preset.problem_count
+        setting.selection_mode = preset.selection_mode
+        setting.incorrect_rate_threshold = preset.incorrect_rate_threshold
+        setting.minimum_attempt_count = preset.minimum_attempt_count
+        setting.incorrect_count_threshold = preset.incorrect_count_threshold
 
     commit_preset_change(db)
     db.refresh(preset)

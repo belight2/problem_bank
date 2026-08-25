@@ -49,6 +49,18 @@ def save_random_study_settings(
 
     topic_id = preset.topic_id if preset is not None else payload.topic_id
     problem_count = preset.problem_count if preset is not None else payload.problem_count
+    selection_mode = preset.selection_mode if preset is not None else payload.selection_mode
+    incorrect_rate_threshold = (
+        preset.incorrect_rate_threshold if preset is not None else payload.incorrect_rate_threshold
+    )
+    minimum_attempt_count = (
+        preset.minimum_attempt_count if preset is not None else payload.minimum_attempt_count
+    )
+    incorrect_count_threshold = (
+        preset.incorrect_count_threshold
+        if preset is not None
+        else payload.incorrect_count_threshold
+    )
     if topic_id is not None:
         topic_id = db.scalar(
             select(Topic.id).where(
@@ -69,12 +81,20 @@ def save_random_study_settings(
             topic_id=topic_id,
             problem_count=problem_count,
             preset_id=preset.id if preset is not None else None,
+            selection_mode=selection_mode,
+            incorrect_rate_threshold=incorrect_rate_threshold,
+            minimum_attempt_count=minimum_attempt_count,
+            incorrect_count_threshold=incorrect_count_threshold,
         )
         db.add(setting)
     else:
         setting.problem_count = problem_count
         setting.topic_id = topic_id
         setting.preset_id = preset.id if preset is not None else None
+        setting.selection_mode = selection_mode
+        setting.incorrect_rate_threshold = incorrect_rate_threshold
+        setting.minimum_attempt_count = minimum_attempt_count
+        setting.incorrect_count_threshold = incorrect_count_threshold
 
     db.commit()
     db.refresh(setting)

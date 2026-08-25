@@ -23,6 +23,22 @@ class RandomStudyPreset(Base):
             "problem_count BETWEEN 1 AND 100",
             name="ck_random_study_presets_problem_count",
         ),
+        CheckConstraint(
+            "selection_mode IN ('all', 'incorrect_rate', 'incorrect_count')",
+            name="ck_random_study_presets_selection_mode",
+        ),
+        CheckConstraint(
+            "incorrect_rate_threshold BETWEEN 1 AND 100",
+            name="ck_random_study_presets_incorrect_rate_threshold",
+        ),
+        CheckConstraint(
+            "minimum_attempt_count >= 1",
+            name="ck_random_study_presets_minimum_attempt_count",
+        ),
+        CheckConstraint(
+            "incorrect_count_threshold >= 1",
+            name="ck_random_study_presets_incorrect_count_threshold",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -34,9 +50,11 @@ class RandomStudyPreset(Base):
         index=True,
     )
     problem_count: Mapped[int]
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    selection_mode: Mapped[str] = mapped_column(String(20), default="all", server_default="all")
+    incorrect_rate_threshold: Mapped[int] = mapped_column(default=50, server_default="50")
+    minimum_attempt_count: Mapped[int] = mapped_column(default=3, server_default="3")
+    incorrect_count_threshold: Mapped[int] = mapped_column(default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

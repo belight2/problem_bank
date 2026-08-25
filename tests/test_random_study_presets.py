@@ -21,6 +21,10 @@ def create_preset(
     topic_id: int | None,
     problem_count: int,
     description: str | None = None,
+    selection_mode: str = "all",
+    incorrect_rate_threshold: int = 50,
+    minimum_attempt_count: int = 3,
+    incorrect_count_threshold: int = 1,
 ) -> dict:
     response = client.post(
         f"/cards/{card_id}/random-study-presets",
@@ -29,6 +33,10 @@ def create_preset(
             "description": description,
             "topic_id": topic_id,
             "problem_count": problem_count,
+            "selection_mode": selection_mode,
+            "incorrect_rate_threshold": incorrect_rate_threshold,
+            "minimum_attempt_count": minimum_attempt_count,
+            "incorrect_count_threshold": incorrect_count_threshold,
         },
     )
     assert response.status_code == 201
@@ -128,6 +136,8 @@ def test_applying_preset_uses_its_values(client: TestClient) -> None:
         name="DB 15문제",
         topic_id=topic_id,
         problem_count=15,
+        selection_mode="incorrect_count",
+        incorrect_count_threshold=3,
     )
 
     applied = client.put(
@@ -142,6 +152,8 @@ def test_applying_preset_uses_its_values(client: TestClient) -> None:
     assert applied.json()["preset_id"] == preset["id"]
     assert applied.json()["topic_id"] == topic_id
     assert applied.json()["problem_count"] == 15
+    assert applied.json()["selection_mode"] == "incorrect_count"
+    assert applied.json()["incorrect_count_threshold"] == 3
 
 
 def test_active_preset_update_and_delete_keep_settings_consistent(
