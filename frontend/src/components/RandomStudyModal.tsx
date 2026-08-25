@@ -195,7 +195,6 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   return (
     <Modal
       title={modalTitle}
-      description={`${card.title} · 객관식과 O/X는 자동 채점하고 나머지는 직접 판정합니다.`}
       onClose={onClose}
       size="wide"
     >
@@ -214,7 +213,6 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
                 />
                 <span>
                   <strong>카드 전체</strong>
-                  <small>모든 주제에서 무작위로 뽑습니다.</small>
                 </span>
               </label>
               <label className={topics.length === 0 ? "is-disabled" : ""} htmlFor={topicScopeId}>
@@ -231,7 +229,6 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
                 />
                 <span>
                   <strong>주제 선택</strong>
-                  <small>선택한 주제 안에서만 뽑습니다.</small>
                 </span>
               </label>
             </div>
@@ -269,9 +266,6 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
               autoFocus
               required
             />
-            <small className="field-help">
-              1~100개까지 설정할 수 있습니다. 문제가 부족하면 등록된 문제만 제공합니다.
-            </small>
           </label>
 
           {error && <p className="form-error" role="alert">{error}</p>}
@@ -316,9 +310,6 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
               <span className="topic-badge">{currentProblem.topic_name}</span>
               <span className="problem-type-badge">
                 {problemTypeLabels[currentProblem.problem_type]}
-              </span>
-              <span className="grading-mode-badge">
-                {automaticGrading ? "자동 채점" : "직접 채점"}
               </span>
             </div>
             <h3 ref={questionRef} className="study-question" tabIndex={-1}>
@@ -401,13 +392,6 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
                       ? "오답입니다"
                       : "채점에서 제외했습니다"}
                 </strong>
-                <p>
-                  {automaticGrading && currentResult !== "ungraded"
-                    ? "선택한 답과 등록된 정답을 비교했습니다."
-                    : currentResult === "ungraded"
-                      ? "정답을 등록한 뒤 다음 학습부터 자동 채점할 수 있습니다."
-                      : "내 답과 기준 답안을 비교해 직접 판정한 결과입니다."}
-                </p>
               </div>
             )}
           </article>
@@ -454,7 +438,6 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
             <div><strong>{incorrectCount}</strong><span>오답</span></div>
             <div><strong>{ungradedCount}</strong><span>채점 제외</span></div>
           </div>
-          <p>채점 결과는 이번 문제 묶음에서만 유지되며 별도로 저장하지 않습니다.</p>
           <div className="study-actions">
             <button className="button button--ghost" type="button" onClick={handleChangeSettings}>
               설정 변경

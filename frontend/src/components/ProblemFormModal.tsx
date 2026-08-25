@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 
 import { getErrorMessage } from "../api/client";
 import { FILL_BLANK_MARKER, problemTypeOptions } from "../problemTypes";
@@ -13,6 +13,11 @@ interface ProblemFormModalProps {
 }
 
 type TrueFalseAnswer = "" | "O" | "X";
+const DEFAULT_CHOICE_COUNT = 5;
+
+function createEmptyChoices() {
+  return Array.from({ length: DEFAULT_CHOICE_COUNT }, () => "");
+}
 
 export function ProblemFormModal({
   problem,
@@ -27,12 +32,12 @@ export function ProblemFormModal({
   const essayAnswerId = useId();
   const trueFalseAnswerId = useId();
   const fillBlankAnswerId = useId();
-  const choiceAnswerName = useId();
   const choiceInputBaseId = useId();
+  const questionInputRef = useRef<HTMLTextAreaElement>(null);
   const initialChoices =
     problem?.problem_type === "multiple_choice" && problem.choices
       ? [...problem.choices]
-      : ["", ""];
+      : createEmptyChoices();
   const initialCorrectChoiceIndex =
     problem?.problem_type === "multiple_choice" && problem.answer
       ? initialChoices.findIndex((choice) => choice === problem.answer)
@@ -66,6 +71,7 @@ export function ProblemFormModal({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const updateChoice = (index: number, value: string) => {
     setChoices((current) =>
@@ -90,6 +96,7 @@ export function ProblemFormModal({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setSuccess(null);
     if (
       selectedTopicId === "" ||
       !topics.some((topic) => topic.id === selectedTopicId) ||
@@ -154,6 +161,18 @@ export function ProblemFormModal({
         choices: normalizedChoices,
         answer: normalizedAnswer,
       });
+      if (!problem) {
+        setQuestion("");
+        setShortAnswer("");
+        setEssayAnswer("");
+        setChoices(createEmptyChoices());
+        setCorrectChoiceIndex(null);
+        setTrueFalseAnswer("");
+        setFillBlankAnswer("");
+        setSaving(false);
+        setSuccess("문제를 만들었습니다.");
+        requestAnimationFrame(() => questionInputRef.current?.focus());
+      }
     } catch (submitError) {
       setError(getErrorMessage(submitError));
       setSaving(false);
@@ -163,7 +182,6 @@ export function ProblemFormModal({
   return (
     <Modal
       title={problem ? "문제 수정" : "새 문제 만들기"}
-      description="문제 유형에 맞는 답안과 채점 기준을 기록합니다."
       onClose={onClose}
       size="wide"
       closeDisabled={saving}
@@ -209,6 +227,7 @@ export function ProblemFormModal({
         <label className="field" htmlFor={questionId}>
           <span>{problemType === "fill_blank" ? "빈칸 문장" : "문제"}</span>
           <textarea
+            ref={questionInputRef}
             id={questionId}
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
@@ -221,11 +240,6 @@ export function ProblemFormModal({
             disabled={saving}
             required
           />
-          {problemType === "fill_blank" && (
-            <small className="field-help">
-              핵심 개념이 들어갈 자리에 {FILL_BLANK_MARKER}을 정확히 한 번 넣어 주세요.
-            </small>
-          )}
         </label>
 
         {problemType === "short_answer" && (
@@ -263,10 +277,6 @@ export function ProblemFormModal({
           <fieldset className="choice-fieldset">
             <legend>선택지와 정답</legend>
             <div className="choice-editor-heading">
-              <p>
-                선택지를 2~10개 입력하고, 자동 채점할 정답을 선택지 왼쪽의 원으로
-                선택하세요.
-              </p>
               <button
                 className="button button--ghost button--compact"
                 type="button"
@@ -280,31 +290,26 @@ export function ProblemFormModal({
             <div className="choice-editor-list">
               {choices.map((choice, index) => {
                 const choiceInputId = `${choiceInputBaseId}-${index}`;
+                const isCorrectAnswer = correctChoiceIndex === index;
                 return (
-                  <div className="choice-editor-row" key={index}>
-                    <label className="choice-answer-picker">
-                      <input
-                        type="radio"
-                        name={choiceAnswerName}
-                        checked={correctChoiceIndex === index}
-                        onChange={() => setCorrectChoiceIndex(index)}
-                        disabled={saving}
-                        required
-                      />
-                      <span className="sr-only">
-                        선택지 {index + 1}
-                        {choice.trim() ? `, ${choice.trim()}` : ""}을 정답으로 지정
-                      </span>
-                    </label>
+                  <div
+                    className={`choice-editor-row ${isCorrectAnswer ? "choice-editor-row--correct" : ""}`}
+                    key={index}
+                  >
                     <label className="choice-input" htmlFor={choiceInputId}>
-                      <span>선택지 {index + 1}</span>
+                      <span className="choice-input-heading">
+                        <span>선택지 {index + 1}</span>
+                        {isCorrectAnswer && <strong>정답</strong>}
+                      </span>
                       <input
                         id={choiceInputId}
                         value={choice}
                         onChange={(event) => updateChoice(index, event.target.value)}
+                        onFocus={() => setCorrectChoiceIndex(index)}
                         placeholder={`선택지 ${index + 1} 내용을 입력해 주세요.`}
                         disabled={saving}
                         required
+                        aria-label={`선택지 ${index + 1} 내용${isCorrectAnswer ? ", 현재 정답" : ", 포커스하면 정답으로 지정"}`}
                       />
                     </label>
                     <button
@@ -313,8 +318,9 @@ export function ProblemFormModal({
                       onClick={() => removeChoice(index)}
                       disabled={choices.length <= 2 || saving}
                       aria-label={`선택지 ${index + 1} 삭제`}
+                      title={`선택지 ${index + 1} 삭제`}
                     >
-                      삭제
+                      <span aria-hidden="true">×</span>
                     </button>
                   </div>
                 );
@@ -360,6 +366,12 @@ export function ProblemFormModal({
         {error && (
           <p className="form-error" role="alert">
             {error}
+          </p>
+        )}
+
+        {success && (
+          <p className="form-success" role="status">
+            {success}
           </p>
         )}
 

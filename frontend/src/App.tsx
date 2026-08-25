@@ -150,11 +150,11 @@ function App() {
       setProblems((current) =>
         current.map((problem) => (problem.id === updated.id ? updated : problem)),
       );
+      setProblemEditor(undefined);
     } else {
       const created = await problemApi.create(selectedCard.id, input);
       setProblems((current) => [created, ...current]);
     }
-    setProblemEditor(undefined);
   };
 
   const handleTopicCreated = (topic: Topic) => {
@@ -239,13 +239,7 @@ function App() {
       <header className="topbar">
         <button className="brand" type="button" onClick={closeCard}>
           <span className="brand-mark" aria-hidden="true">PB</span>
-          <span>
-            <strong>나의 문제 은행</strong>
-            <small>직접 만들고, 가볍게 반복하기</small>
-          </span>
-        </button>
-        <button className="button button--primary button--compact" type="button" onClick={() => setCardEditor(null)}>
-          새 카드
+          <strong>나의 문제 은행</strong>
         </button>
       </header>
 
@@ -276,7 +270,7 @@ function App() {
               <div>
                 <p className="eyebrow">Study card · {problems.length} problems</p>
                 <h1>{selectedCard.title}</h1>
-                <p>{selectedCard.description || "이 카드에 나만의 문제를 차곡차곡 쌓아 보세요."}</p>
+                {selectedCard.description && <p>{selectedCard.description}</p>}
               </div>
               <div className="detail-actions">
                 <button className="button button--ghost" type="button" onClick={() => setCardEditor(selectedCard)}>
@@ -289,7 +283,6 @@ function App() {
             </div>
 
             <div className="problem-toolbar">
-              <p className="toolbar-note">문제를 관리하고, 원하는 개수만큼 무작위로 확인할 수 있어요.</p>
               <div className="toolbar-actions">
                 <button
                   className="button button--ghost"
@@ -336,7 +329,6 @@ function App() {
               <div className="empty-state empty-state--compact">
                 <span className="empty-index" aria-hidden="true">!</span>
                 <h3>카드 내용을 불러오지 못했어요</h3>
-                <p>위의 다시 시도 버튼으로 주제와 문제를 함께 불러와 주세요.</p>
               </div>
             ) : problems.length > 0 ? (
               <div className="problem-list">
@@ -375,11 +367,6 @@ function App() {
                     ? "문제를 만들기 전에 주제를 추가해 주세요"
                     : "첫 문제를 만들어 보세요"}
                 </h3>
-                <p>
-                  {topics.length === 0
-                    ? "주제를 만들면 새 문제에서 기존 주제를 선택할 수 있어요."
-                    : "주제와 유형을 고르고 필요하면 정답이나 해설도 남겨 보세요."}
-                </p>
                 <button
                   className="button button--primary"
                   type="button"
@@ -399,9 +386,8 @@ function App() {
                 <h1>배운 것을<br />내 문제로 남기세요.</h1>
               </div>
               <div className="hero-note">
-                <p>시험이나 분야별로 카드를 만들고, 카드 안에 직접 만든 문제를 차곡차곡 쌓아 보세요.</p>
                 <button className="button button--primary" type="button" onClick={() => setCardEditor(null)}>
-                  첫 카드 만들기
+                  카드 만들기
                 </button>
               </div>
             </div>
@@ -426,7 +412,7 @@ function App() {
                       <span className="card-index">{String(index + 1).padStart(2, "0")}</span>
                       <div>
                         <h3>{card.title}</h3>
-                        <p>{card.description || "설명이 없는 카드입니다."}</p>
+                        {card.description && <p>{card.description}</p>}
                       </div>
                       <span className="card-date">{dateFormatter.format(new Date(card.updated_at))}</span>
                     </button>
@@ -442,7 +428,6 @@ function App() {
               <div className="empty-state empty-state--library">
                 <span className="empty-index" aria-hidden="true">01</span>
                 <h3>아직 공부 카드가 없어요</h3>
-                <p>정보처리기사, 영어 단어, 네트워크처럼 공부할 대상을 카드로 만들어 보세요.</p>
                 <button className="button button--primary" type="button" onClick={() => setCardEditor(null)}>
                   카드 만들기
                 </button>
@@ -454,7 +439,6 @@ function App() {
 
       <footer>
         <span>Problem Bank</span>
-        <span>자동 채점과 직접 판단을 필요한 만큼.</span>
       </footer>
 
       {cardEditor !== undefined && (

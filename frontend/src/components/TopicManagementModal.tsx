@@ -123,7 +123,6 @@ export function TopicManagementModal({
   return (
     <Modal
       title="주제 관리"
-      description={`${card.title} 카드에서 문제를 분류할 주제를 관리합니다.`}
       onClose={onClose}
       size="wide"
       closeDisabled={busy}
@@ -211,7 +210,6 @@ export function TopicManagementModal({
                   >
                     <p>
                       <strong>{topic.name}</strong> 주제를 삭제할까요?
-                      <small>사용 중인 주제는 삭제되지 않습니다.</small>
                     </p>
                     <div className="topic-row-actions">
                       <button
@@ -272,7 +270,6 @@ export function TopicManagementModal({
           <div className="empty-state empty-state--compact">
             <span className="empty-index" aria-hidden="true">#</span>
             <h3>첫 주제를 만들어 보세요</h3>
-            <p>문제를 만들기 전에 분류할 주제가 하나 이상 필요합니다.</p>
           </div>
         )}
       </section>
