@@ -54,12 +54,32 @@ export interface ProblemInput {
 export interface RandomStudySettings {
   card_id: number;
   topic_id: number | null;
+  preset_id: number | null;
   problem_count: number;
   created_at: string;
   updated_at: string;
 }
 
 export interface RandomStudySettingsInput {
+  topic_id: number | null;
+  preset_id: number | null;
+  problem_count: number;
+}
+
+export interface RandomStudyPreset {
+  id: number;
+  card_id: number;
+  name: string;
+  description: string | null;
+  topic_id: number | null;
+  problem_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RandomStudyPresetInput {
+  name: string;
+  description: string | null;
   topic_id: number | null;
   problem_count: number;
 }

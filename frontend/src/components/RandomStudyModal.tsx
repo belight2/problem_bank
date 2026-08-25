@@ -10,10 +10,17 @@ import {
 import {
   getErrorMessage,
   problemApi,
+  randomStudyPresetApi,
   randomStudySettingsApi,
 } from "../api/client";
 import { problemTypeLabels } from "../problemTypes";
-import type { Card, Problem, ProblemType, Topic } from "../types";
+import type {
+  Card,
+  Problem,
+  ProblemType,
+  RandomStudyPreset,
+  Topic,
+} from "../types";
 import { Modal } from "./Modal";
 import { ProblemPrompt } from "./ProblemPrompt";
 
@@ -23,13 +30,14 @@ interface RandomStudyModalProps {
   onClose: () => void;
 }
 
-type StudyStage = "setup" | "loading" | "study" | "complete";
+type StudyStage = "loading" | "overview" | "settings" | "study" | "complete";
 type StudyScope = "all" | "topic";
 type GradeResult = "correct" | "incorrect" | "ungraded";
 
 interface StudyConfiguration {
   problemCount: number;
   topicId?: number;
+  presetId: number | null;
 }
 
 function isAutomaticallyGraded(problemType: ProblemType) {
@@ -41,6 +49,8 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   const topicScopeId = useId();
   const topicSelectId = useId();
   const countId = useId();
+  const presetNameId = useId();
+  const presetDescriptionId = useId();
   const answerId = useId();
   const userAnswerId = useId();
   const responseName = useId();
@@ -50,7 +60,18 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   const [stage, setStage] = useState<StudyStage>("loading");
   const [scope, setScope] = useState<StudyScope>("all");
   const [topicId, setTopicId] = useState<number | "">(topics[0]?.id ?? "");
-  const [count, setCount] = useState("");
+  const [count, setCount] = useState("10");
+  const [activePresetId, setActivePresetId] = useState<number | null>(null);
+  const [savedConfiguration, setSavedConfiguration] = useState<StudyConfiguration>({
+    problemCount: 10,
+    presetId: null,
+  });
+  const [presets, setPresets] = useState<RandomStudyPreset[]>([]);
+  const [editingPresetId, setEditingPresetId] = useState<number | null>(null);
+  const [presetName, setPresetName] = useState("");
+  const [presetDescription, setPresetDescription] = useState("");
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [requestedCount, setRequestedCount] = useState(0);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -58,11 +79,14 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   const [showAnswer, setShowAnswer] = useState(false);
   const [results, setResults] = useState<Record<number, GradeResult>>({});
   const [error, setError] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState("설정을 불러오는 중…");
 
-  const currentProblem = problems[currentIndex] ?? null;
-  const currentResult = currentProblem ? (results[currentProblem.id] ?? null) : null;
+  const activePreset = presets.find((preset) => preset.id === activePresetId) ?? null;
+  const editingPreset = presets.find((preset) => preset.id === editingPresetId) ?? null;
   const selectedTopic =
     scope === "topic" ? topics.find((topic) => topic.id === topicId) : undefined;
+  const currentProblem = problems[currentIndex] ?? null;
+  const currentResult = currentProblem ? (results[currentProblem.id] ?? null) : null;
   const automaticGrading = currentProblem
     ? isAutomaticallyGraded(currentProblem.problem_type)
     : false;
@@ -80,9 +104,77 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   const incorrectCount = gradeResults.filter((result) => result === "incorrect").length;
   const ungradedCount = gradeResults.filter((result) => result === "ungraded").length;
 
+  const applyConfiguration = useCallback((configuration: StudyConfiguration) => {
+    const configuredTopic = configuration.topicId === undefined
+      ? undefined
+      : topics.find((topic) => topic.id === configuration.topicId);
+    setScope(configuredTopic ? "topic" : "all");
+    setTopicId(configuredTopic?.id ?? topics[0]?.id ?? "");
+    setCount(String(configuration.problemCount));
+    setActivePresetId(configuration.presetId);
+    setSavedConfiguration(configuration);
+  }, [topics]);
+
+  const setDraftConfiguration = (configuration: StudyConfiguration) => {
+    const configuredTopic = configuration.topicId === undefined
+      ? undefined
+      : topics.find((topic) => topic.id === configuration.topicId);
+    setScope(configuredTopic ? "topic" : "all");
+    setTopicId(configuredTopic?.id ?? topics[0]?.id ?? "");
+    setCount(String(configuration.problemCount));
+  };
+
+  const getConfiguration = (): StudyConfiguration | null => {
+    const parsedCount = Number(count);
+    if (!Number.isInteger(parsedCount) || parsedCount < 1 || parsedCount > 100) {
+      setError("문제 개수는 1부터 100 사이의 정수로 입력해 주세요.");
+      return null;
+    }
+    if (scope === "topic" && !selectedTopic) {
+      setError("문제를 가져올 주제를 선택해 주세요.");
+      return null;
+    }
+    return {
+      problemCount: parsedCount,
+      topicId: selectedTopic?.id,
+      presetId: activePresetId,
+    };
+  };
+
   useEffect(() => {
     if (stage === "study") questionRef.current?.focus();
   }, [currentIndex, stage]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    requestController.current = controller;
+
+    Promise.all([
+      randomStudySettingsApi.get(card.id, controller.signal),
+      randomStudyPresetApi.list(card.id, controller.signal),
+    ])
+      .then(([savedSettings, savedPresets]) => {
+        setPresets(savedPresets);
+        if (savedSettings) {
+          const presetExists = savedPresets.some(
+            (preset) => preset.id === savedSettings.preset_id,
+          );
+          applyConfiguration({
+            problemCount: savedSettings.problem_count,
+            topicId: savedSettings.topic_id ?? undefined,
+            presetId: presetExists ? savedSettings.preset_id : null,
+          });
+        }
+        setStage("overview");
+      })
+      .catch((requestError: unknown) => {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        setStage("overview");
+        setError(getErrorMessage(requestError));
+      });
+
+    return () => controller.abort();
+  }, [applyConfiguration, card.id]);
 
   const resetCurrentAnswer = () => {
     setUserAnswer("");
@@ -90,40 +182,40 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
     setError(null);
   };
 
-  const loadProblemSet = useCallback(async (
-    configuration: StudyConfiguration,
-    saveSettings: boolean,
-  ) => {
+  const loadProblemSet = async (configuration: StudyConfiguration) => {
     const configuredTopic = configuration.topicId === undefined
       ? undefined
       : topics.find((topic) => topic.id === configuration.topicId);
     if (configuration.topicId !== undefined && !configuredTopic) {
-      setScope("all");
-      setTopicId(topics[0]?.id ?? "");
-      setCount(String(configuration.problemCount));
-      setStage("setup");
-      setError("저장된 주제를 찾을 수 없습니다.");
+      setStage("overview");
+      setError("선택한 주제를 찾을 수 없습니다.");
       return;
     }
-
-    setScope(configuredTopic ? "topic" : "all");
-    setTopicId(configuredTopic?.id ?? topics[0]?.id ?? "");
-    setCount(String(configuration.problemCount));
 
     requestController.current?.abort();
     const controller = new AbortController();
     requestController.current = controller;
+    setLoadingMessage("문제를 불러오는 중…");
     setStage("loading");
     setError(null);
 
     try {
+      const savedSettings = await randomStudySettingsApi.save(
+        card.id,
+        {
+          problem_count: configuration.problemCount,
+          topic_id: configuredTopic?.id ?? null,
+          preset_id: configuration.presetId,
+        },
+        controller.signal,
+      );
       const result = await problemApi.random(card.id, {
-        count: configuration.problemCount,
-        topicId: configuredTopic?.id,
+        count: savedSettings.problem_count,
+        topicId: savedSettings.topic_id ?? undefined,
         signal: controller.signal,
       });
       if (result.length === 0) {
-        setStage("setup");
+        setStage("overview");
         setError(
           configuredTopic
             ? `‘${configuredTopic.name}’ 주제에 등록된 문제가 없습니다.`
@@ -132,19 +224,13 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
         return;
       }
 
-      if (saveSettings) {
-        await randomStudySettingsApi.save(
-          card.id,
-          {
-            problem_count: configuration.problemCount,
-            topic_id: configuredTopic?.id ?? null,
-          },
-          controller.signal,
-        );
-      }
-
+      applyConfiguration({
+        problemCount: savedSettings.problem_count,
+        topicId: savedSettings.topic_id ?? undefined,
+        presetId: savedSettings.preset_id,
+      });
       setProblems(result);
-      setRequestedCount(configuration.problemCount);
+      setRequestedCount(savedSettings.problem_count);
       setCurrentIndex(0);
       setResults({});
       setUserAnswer("");
@@ -153,62 +239,145 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
       setStage("study");
     } catch (requestError) {
       if (requestError instanceof DOMException && requestError.name === "AbortError") return;
-      setStage("setup");
+      setStage("overview");
       setError(getErrorMessage(requestError));
     }
-  }, [card.id, topics]);
+  };
 
-  useEffect(() => {
-    const initialize = async () => {
-      requestController.current?.abort();
-      const controller = new AbortController();
-      requestController.current = controller;
-      setStage("loading");
-      setError(null);
+  const handleStart = () => {
+    const configuration = getConfiguration();
+    if (configuration) void loadProblemSet(configuration);
+  };
 
-      try {
-        const savedSettings = await randomStudySettingsApi.get(card.id, controller.signal);
-        if (savedSettings === null) {
-          setStage("setup");
-          return;
-        }
-        await loadProblemSet(
-          {
-            problemCount: savedSettings.problem_count,
-            topicId: savedSettings.topic_id ?? undefined,
-          },
-          false,
-        );
-      } catch (requestError) {
-        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
-        setStage("setup");
-        setError(getErrorMessage(requestError));
-      }
-    };
+  const beginNewPreset = () => {
+    setEditingPresetId(null);
+    setPresetName("");
+    setPresetDescription("");
+    setDeleteArmed(false);
+    setError(null);
+  };
 
-    void initialize();
-    return () => requestController.current?.abort();
-  }, [card.id, loadProblemSet]);
+  const beginEditPreset = (preset: RandomStudyPreset) => {
+    setEditingPresetId(preset.id);
+    setPresetName(preset.name);
+    setPresetDescription(preset.description ?? "");
+    setDeleteArmed(false);
+    setError(null);
+    setDraftConfiguration({
+      problemCount: preset.problem_count,
+      topicId: preset.topic_id ?? undefined,
+      presetId: preset.id,
+    });
+  };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const openSettings = () => {
+    setStage("settings");
+    setError(null);
+    if (activePreset) {
+      beginEditPreset(activePreset);
+    } else {
+      beginNewPreset();
+    }
+  };
+
+  const returnToOverview = () => {
+    applyConfiguration(savedConfiguration);
+    setStage("overview");
+    setError(null);
+  };
+
+  const handleSavePreset = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const parsedCount = Number(count);
-    if (!Number.isInteger(parsedCount) || parsedCount < 1 || parsedCount > 100) {
-      setError("문제 개수는 1부터 100 사이의 정수로 입력해 주세요.");
+    const configuration = getConfiguration();
+    const trimmedName = presetName.trim();
+    if (!trimmedName) {
+      setError("프리셋 이름을 입력해 주세요.");
       return;
     }
-    if (scope === "topic" && !selectedTopic) {
-      setError("문제를 가져올 주제를 선택해 주세요.");
+    if (!configuration) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const input = {
+        name: trimmedName,
+        description: presetDescription.trim() || null,
+        topic_id: configuration.topicId ?? null,
+        problem_count: configuration.problemCount,
+      };
+      const savedPreset = editingPresetId === null
+        ? await randomStudyPresetApi.create(card.id, input)
+        : await randomStudyPresetApi.update(card.id, editingPresetId, input);
+      const savedSettings = await randomStudySettingsApi.save(card.id, {
+        problem_count: savedPreset.problem_count,
+        topic_id: savedPreset.topic_id,
+        preset_id: savedPreset.id,
+      });
+
+      setPresets((current) => {
+        const exists = current.some((preset) => preset.id === savedPreset.id);
+        return exists
+          ? current.map((preset) => preset.id === savedPreset.id ? savedPreset : preset)
+          : [...current, savedPreset];
+      });
+      applyConfiguration({
+        problemCount: savedSettings.problem_count,
+        topicId: savedSettings.topic_id ?? undefined,
+        presetId: savedPreset.id,
+      });
+      setEditingPresetId(savedPreset.id);
+      setStage("overview");
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleApplyPreset = async () => {
+    if (!editingPreset) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const savedSettings = await randomStudySettingsApi.save(card.id, {
+        problem_count: editingPreset.problem_count,
+        topic_id: editingPreset.topic_id,
+        preset_id: editingPreset.id,
+      });
+      applyConfiguration({
+        problemCount: savedSettings.problem_count,
+        topicId: savedSettings.topic_id ?? undefined,
+        presetId: editingPreset.id,
+      });
+      setStage("overview");
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeletePreset = async () => {
+    if (!editingPreset) return;
+    if (!deleteArmed) {
+      setDeleteArmed(true);
       return;
     }
 
-    void loadProblemSet(
-      {
-        problemCount: parsedCount,
-        topicId: selectedTopic?.id,
-      },
-      true,
-    );
+    setBusy(true);
+    setError(null);
+    try {
+      await randomStudyPresetApi.remove(card.id, editingPreset.id);
+      setPresets((current) => current.filter((preset) => preset.id !== editingPreset.id));
+      if (activePresetId === editingPreset.id) {
+        applyConfiguration({ ...savedConfiguration, presetId: null });
+      }
+      beginNewPreset();
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const recordResult = (result: GradeResult) => {
@@ -222,7 +391,6 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
       setError("답을 선택해 주세요.");
       return;
     }
-
     setError(null);
     setShowAnswer(true);
     recordResult(userAnswer === currentProblem.answer ? "correct" : "incorrect");
@@ -253,114 +421,221 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
     setCurrentIndex((current) => current + 1);
   };
 
-  const handleChangeSettings = () => {
-    requestController.current?.abort();
-    setStage("setup");
-    setProblems([]);
-    setCurrentIndex(0);
-    setResults({});
-    resetCurrentAnswer();
-  };
-
-  const modalTitle =
-    stage === "setup"
-      ? "랜덤 문제 설정"
-      : stage === "complete"
-        ? "문제 묶음 완료"
-        : "랜덤 문제 풀기";
+  const modalTitle = stage === "settings"
+    ? "랜덤 문제 설정"
+    : stage === "complete"
+      ? "문제 묶음 완료"
+      : "랜덤 문제 풀기";
 
   return (
-    <Modal
-      title={modalTitle}
-      onClose={onClose}
-      size="wide"
-    >
-      {stage === "setup" && (
-        <form className="study-setup" onSubmit={handleSubmit}>
-          <fieldset className="scope-fieldset">
-            <legend>문제 범위</legend>
-            <div className="scope-options">
-              <label htmlFor={allScopeId}>
-                <input
-                  id={allScopeId}
-                  type="radio"
-                  name="study-scope"
-                  checked={scope === "all"}
-                  onChange={() => setScope("all")}
-                />
-                <span>
-                  <strong>카드 전체</strong>
-                </span>
-              </label>
-              <label className={topics.length === 0 ? "is-disabled" : ""} htmlFor={topicScopeId}>
-                <input
-                  id={topicScopeId}
-                  type="radio"
-                  name="study-scope"
-                  checked={scope === "topic"}
-                  disabled={topics.length === 0}
-                  onChange={() => {
-                    setScope("topic");
-                    setTopicId((current) => current || topics[0]?.id || "");
-                  }}
-                />
-                <span>
-                  <strong>주제 선택</strong>
-                </span>
-              </label>
+    <Modal title={modalTitle} onClose={onClose} size="wide">
+      {stage === "overview" && (
+        <section className="study-overview">
+          <div className="study-overview-heading">
+            <div>
+              <span className="study-overview-label">사용할 설정</span>
+              <h3>{activePreset?.name ?? "기본 설정"}</h3>
+              {activePreset?.description && <p>{activePreset.description}</p>}
             </div>
-          </fieldset>
-
-          <label className="field" htmlFor={topicSelectId}>
-            <span>주제</span>
-            <select
-              id={topicSelectId}
-              value={topicId}
-              onChange={(event) =>
-                setTopicId(event.target.value ? Number(event.target.value) : "")
-              }
-              disabled={scope !== "topic"}
-              required={scope === "topic"}
+            <button
+              className="settings-gear"
+              type="button"
+              aria-label="랜덤 문제 설정 열기"
+              title="설정"
+              onClick={openSettings}
             >
-              {topics.map((topic) => (
-                <option key={topic.id} value={topic.id}>{topic.name}</option>
-              ))}
-            </select>
-          </label>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z" />
+                <path d="M19.4 13.5a7.8 7.8 0 0 0 0-3l1.7-1.3-2-3.4-2 .8a8 8 0 0 0-2.6-1.5L14.2 3h-4.1l-.3 2.1a8 8 0 0 0-2.6 1.5l-2-.8-2 3.4 1.7 1.3a7.8 7.8 0 0 0 0 3l-1.7 1.3 2 3.4 2-.8a8 8 0 0 0 2.6 1.5l.3 2.1h4.1l.3-2.1a8 8 0 0 0 2.6-1.5l2 .8 2-3.4-1.7-1.3Z" />
+              </svg>
+            </button>
+          </div>
 
-          <label className="field" htmlFor={countId}>
-            <span>문제 개수</span>
-            <input
-              id={countId}
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={100}
-              step={1}
-              value={count}
-              onChange={(event) => setCount(event.target.value)}
-              placeholder="예: 10"
-              autoFocus
-              required
-            />
-          </label>
+          <div className="study-config-grid">
+            <div>
+              <span>문제 범위</span>
+              <strong>{selectedTopic?.name ?? "카드 전체"}</strong>
+            </div>
+            <div>
+              <span>문제 개수</span>
+              <strong>{count}개</strong>
+            </div>
+          </div>
 
           {error && <p className="form-error" role="alert">{error}</p>}
 
-          <div className="modal-actions">
+          <div className="study-start-actions">
             <button className="button button--ghost" type="button" onClick={onClose}>
-              취소
+              닫기
             </button>
-            <button className="button button--primary" type="submit">
-              문제 뽑기
+            <button className="button button--primary" type="button" onClick={handleStart}>
+              시작
             </button>
           </div>
-        </form>
+        </section>
+      )}
+
+      {stage === "settings" && (
+        <section className="preset-settings-layout">
+          <aside className="preset-sidebar">
+            <div className="preset-sidebar-heading">
+              <strong>프리셋</strong>
+              <button type="button" onClick={beginNewPreset}>새로 만들기</button>
+            </div>
+            <div className="preset-list">
+              {presets.map((preset) => (
+                <button
+                  className={editingPresetId === preset.id ? "is-active" : ""}
+                  type="button"
+                  key={preset.id}
+                  onClick={() => beginEditPreset(preset)}
+                >
+                  <span>{preset.name}</span>
+                  <small>
+                    {preset.topic_id === null
+                      ? "카드 전체"
+                      : topics.find((topic) => topic.id === preset.topic_id)?.name ?? "주제 없음"}
+                    {` · ${preset.problem_count}개`}
+                  </small>
+                </button>
+              ))}
+              {presets.length === 0 && <p className="preset-empty">저장된 프리셋이 없습니다.</p>}
+            </div>
+          </aside>
+
+          <form className="preset-editor" onSubmit={handleSavePreset}>
+            <label className="field" htmlFor={presetNameId}>
+              <span>이름</span>
+              <input
+                id={presetNameId}
+                value={presetName}
+                maxLength={100}
+                onChange={(event) => setPresetName(event.target.value)}
+                autoFocus
+                required
+              />
+            </label>
+
+            <label className="field" htmlFor={presetDescriptionId}>
+              <span>설명</span>
+              <textarea
+                id={presetDescriptionId}
+                value={presetDescription}
+                onChange={(event) => setPresetDescription(event.target.value)}
+                rows={3}
+              />
+            </label>
+
+            <fieldset className="scope-fieldset">
+              <legend>문제 범위</legend>
+              <div className="scope-options">
+                <label htmlFor={allScopeId}>
+                  <input
+                    id={allScopeId}
+                    type="radio"
+                    name="study-scope"
+                    checked={scope === "all"}
+                    onChange={() => setScope("all")}
+                  />
+                  <span><strong>카드 전체</strong></span>
+                </label>
+                <label className={topics.length === 0 ? "is-disabled" : ""} htmlFor={topicScopeId}>
+                  <input
+                    id={topicScopeId}
+                    type="radio"
+                    name="study-scope"
+                    checked={scope === "topic"}
+                    disabled={topics.length === 0}
+                    onChange={() => {
+                      setScope("topic");
+                      setTopicId((current) => current || topics[0]?.id || "");
+                    }}
+                  />
+                  <span><strong>주제 선택</strong></span>
+                </label>
+              </div>
+            </fieldset>
+
+            <div className="preset-value-grid">
+              <label className="field" htmlFor={topicSelectId}>
+                <span>주제</span>
+                <select
+                  id={topicSelectId}
+                  value={topicId}
+                  onChange={(event) =>
+                    setTopicId(event.target.value ? Number(event.target.value) : "")
+                  }
+                  disabled={scope !== "topic"}
+                  required={scope === "topic"}
+                >
+                  {topics.map((topic) => (
+                    <option key={topic.id} value={topic.id}>{topic.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field" htmlFor={countId}>
+                <span>문제 개수</span>
+                <input
+                  id={countId}
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={100}
+                  step={1}
+                  value={count}
+                  onChange={(event) => setCount(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+
+            {error && <p className="form-error" role="alert">{error}</p>}
+
+            <div className="preset-editor-actions">
+              <div>
+                {editingPreset && (
+                  <button
+                    className="button button--danger-ghost"
+                    type="button"
+                    onClick={() => void handleDeletePreset()}
+                    disabled={busy}
+                  >
+                    {deleteArmed ? "정말 삭제" : "삭제"}
+                  </button>
+                )}
+              </div>
+              <div>
+                <button
+                  className="button button--ghost"
+                  type="button"
+                  onClick={returnToOverview}
+                  disabled={busy}
+                >
+                  돌아가기
+                </button>
+                {editingPreset && (
+                  <button
+                    className="button button--secondary"
+                    type="button"
+                    onClick={() => void handleApplyPreset()}
+                    disabled={busy}
+                  >
+                    이 프리셋 사용
+                  </button>
+                )}
+                <button className="button button--primary" type="submit" disabled={busy}>
+                  {busy ? "저장 중…" : editingPreset ? "변경 저장" : "프리셋 저장"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
       )}
 
       {stage === "loading" && (
         <div className="study-loading" role="status" aria-live="polite">
-          설정한 범위에서 문제를 뽑는 중…
+          {loadingMessage}
         </div>
       )}
 
@@ -474,12 +749,8 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
           </article>
 
           <div className="study-actions">
-            <button
-              className="button button--ghost"
-              type="button"
-              onClick={handleChangeSettings}
-            >
-              설정 변경
+            <button className="button button--ghost" type="button" onClick={openSettings}>
+              설정
             </button>
             {currentResult ? (
               <button className="button button--primary" type="button" onClick={handleNext}>
@@ -523,21 +794,18 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
             <div><strong>{ungradedCount}</strong><span>채점 제외</span></div>
           </div>
           <div className="study-actions">
-            <button className="button button--ghost" type="button" onClick={handleChangeSettings}>
-              설정 변경
+            <button className="button button--ghost" type="button" onClick={openSettings}>
+              설정
             </button>
             <button
               className="button button--primary"
               type="button"
-              onClick={() => void loadProblemSet(
-                {
-                  problemCount: requestedCount,
-                  topicId: selectedTopic?.id,
-                },
-                false,
-              )}
+              onClick={() => {
+                const configuration = getConfiguration();
+                if (configuration) void loadProblemSet(configuration);
+              }}
             >
-              같은 설정으로 다시 뽑기
+              같은 설정으로 다시 풀기
             </button>
           </div>
         </div>

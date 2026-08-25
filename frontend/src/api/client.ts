@@ -3,6 +3,8 @@ import type {
   CardInput,
   Problem,
   ProblemInput,
+  RandomStudyPreset,
+  RandomStudyPresetInput,
   RandomStudySettings,
   RandomStudySettingsInput,
   Topic,
@@ -125,6 +127,39 @@ export const randomStudySettingsApi = {
       method: "PUT",
       body: JSON.stringify(input),
       signal,
+    }),
+};
+
+export const randomStudyPresetApi = {
+  list: (cardId: number, signal?: AbortSignal) =>
+    request<RandomStudyPreset[]>(`/cards/${cardId}/random-study-presets`, { signal }),
+  create: (
+    cardId: number,
+    input: RandomStudyPresetInput,
+    signal?: AbortSignal,
+  ) =>
+    request<RandomStudyPreset>(`/cards/${cardId}/random-study-presets`, {
+      method: "POST",
+      body: JSON.stringify(input),
+      signal,
+    }),
+  update: (
+    cardId: number,
+    presetId: number,
+    input: RandomStudyPresetInput,
+    signal?: AbortSignal,
+  ) =>
+    request<RandomStudyPreset>(
+      `/cards/${cardId}/random-study-presets/${presetId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+        signal,
+      },
+    ),
+  remove: (cardId: number, presetId: number) =>
+    request<void>(`/cards/${cardId}/random-study-presets/${presetId}`, {
+      method: "DELETE",
     }),
 };
 
