@@ -3,6 +3,7 @@ from sqlalchemy import select
 
 from app.api.dependencies import DatabaseSession
 from app.api.routes.cards import get_card_or_404
+from app.models.random_study_preset import RandomStudyPreset
 from app.models.random_study_setting import RandomStudySetting
 from app.models.topic import Topic
 from app.schemas.random_study_setting import (
@@ -32,10 +33,26 @@ def save_random_study_settings(
     db: DatabaseSession,
 ) -> RandomStudySetting:
     get_card_or_404(card_id, db)
-    if payload.topic_id is not None:
+    preset = None
+    if payload.preset_id is not None:
+        preset = db.scalar(
+            select(RandomStudyPreset).where(
+                RandomStudyPreset.id == payload.preset_id,
+                RandomStudyPreset.card_id == card_id,
+            )
+        )
+        if preset is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Random study preset not found",
+            )
+
+    topic_id = preset.topic_id if preset is not None else payload.topic_id
+    problem_count = preset.problem_count if preset is not None else payload.problem_count
+    if topic_id is not None:
         topic_id = db.scalar(
             select(Topic.id).where(
-                Topic.id == payload.topic_id,
+                Topic.id == topic_id,
                 Topic.card_id == card_id,
             )
         )
@@ -47,11 +64,17 @@ def save_random_study_settings(
 
     setting = db.get(RandomStudySetting, card_id)
     if setting is None:
-        setting = RandomStudySetting(card_id=card_id, **payload.model_dump())
+        setting = RandomStudySetting(
+            card_id=card_id,
+            topic_id=topic_id,
+            problem_count=problem_count,
+            preset_id=preset.id if preset is not None else None,
+        )
         db.add(setting)
     else:
-        setting.problem_count = payload.problem_count
-        setting.topic_id = payload.topic_id
+        setting.problem_count = problem_count
+        setting.topic_id = topic_id
+        setting.preset_id = preset.id if preset is not None else None
 
     db.commit()
     db.refresh(setting)

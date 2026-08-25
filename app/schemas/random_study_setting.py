@@ -5,11 +5,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 ProblemCount = Annotated[int, Field(ge=1, le=100)]
 TopicId = Annotated[int, Field(gt=0)]
+PresetId = Annotated[int, Field(gt=0)]
 
 
 class RandomStudySettingUpdate(BaseModel):
     problem_count: ProblemCount
     topic_id: TopicId | None = None
+    preset_id: PresetId | None = None
 
 
 class RandomStudySettingRead(BaseModel):
@@ -17,6 +19,7 @@ class RandomStudySettingRead(BaseModel):
 
     card_id: int
     topic_id: int | None
+    preset_id: int | None
     problem_count: int
     created_at: datetime
     updated_at: datetime
