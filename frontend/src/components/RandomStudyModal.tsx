@@ -7,39 +7,68 @@ import {
 } from "react";
 
 import { getErrorMessage, problemApi } from "../api/client";
-import type { Card, Problem } from "../types";
+import { problemTypeLabels } from "../problemTypes";
+import type { Card, Problem, ProblemType, Topic } from "../types";
 import { Modal } from "./Modal";
+import { ProblemPrompt } from "./ProblemPrompt";
 
 interface RandomStudyModalProps {
   card: Card;
-  topics: string[];
+  topics: Topic[];
   onClose: () => void;
 }
 
 type StudyStage = "setup" | "loading" | "study" | "complete";
 type StudyScope = "all" | "topic";
+type GradeResult = "correct" | "incorrect" | "ungraded";
+
+function isAutomaticallyGraded(problemType: ProblemType) {
+  return problemType === "multiple_choice" || problemType === "true_false";
+}
 
 export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProps) {
   const allScopeId = useId();
   const topicScopeId = useId();
-  const topicId = useId();
+  const topicSelectId = useId();
   const countId = useId();
   const answerId = useId();
+  const userAnswerId = useId();
+  const responseName = useId();
   const questionRef = useRef<HTMLHeadingElement>(null);
   const requestController = useRef<AbortController | null>(null);
 
   const [stage, setStage] = useState<StudyStage>("setup");
   const [scope, setScope] = useState<StudyScope>("all");
-  const [topic, setTopic] = useState(topics[0] ?? "");
+  const [topicId, setTopicId] = useState<number | "">(topics[0]?.id ?? "");
   const [count, setCount] = useState("");
   const [requestedCount, setRequestedCount] = useState(0);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [userAnswer, setUserAnswer] = useState("");
   const [showAnswer, setShowAnswer] = useState(false);
+  const [results, setResults] = useState<Record<number, GradeResult>>({});
   const [error, setError] = useState<string | null>(null);
 
   const currentProblem = problems[currentIndex] ?? null;
-  const selectedTopic = scope === "topic" ? topic : undefined;
+  const currentResult = currentProblem ? (results[currentProblem.id] ?? null) : null;
+  const selectedTopic =
+    scope === "topic" ? topics.find((topic) => topic.id === topicId) : undefined;
+  const automaticGrading = currentProblem
+    ? isAutomaticallyGraded(currentProblem.problem_type)
+    : false;
+  const responseOptions = currentProblem
+    ? currentProblem.problem_type === "multiple_choice"
+      ? (currentProblem.choices ?? [])
+      : currentProblem.problem_type === "true_false"
+        ? ["O", "X"]
+        : null
+    : null;
+  const automaticGradingReady =
+    automaticGrading && Boolean(currentProblem?.answer) && Boolean(responseOptions?.length);
+  const gradeResults = Object.values(results);
+  const correctCount = gradeResults.filter((result) => result === "correct").length;
+  const incorrectCount = gradeResults.filter((result) => result === "incorrect").length;
+  const ungradedCount = gradeResults.filter((result) => result === "ungraded").length;
 
   useEffect(() => {
     return () => requestController.current?.abort();
@@ -49,13 +78,19 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
     if (stage === "study") questionRef.current?.focus();
   }, [currentIndex, stage]);
 
+  const resetCurrentAnswer = () => {
+    setUserAnswer("");
+    setShowAnswer(false);
+    setError(null);
+  };
+
   const loadProblemSet = async () => {
     const parsedCount = Number(count);
     if (!Number.isInteger(parsedCount) || parsedCount < 1 || parsedCount > 100) {
       setError("문제 개수는 1부터 100 사이의 정수로 입력해 주세요.");
       return;
     }
-    if (scope === "topic" && !topic) {
+    if (scope === "topic" && !selectedTopic) {
       setError("문제를 가져올 주제를 선택해 주세요.");
       return;
     }
@@ -69,14 +104,14 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
     try {
       const result = await problemApi.random(card.id, {
         count: parsedCount,
-        topic: selectedTopic,
+        topicId: selectedTopic?.id,
         signal: controller.signal,
       });
       if (result.length === 0) {
         setStage("setup");
         setError(
           selectedTopic
-            ? `‘${selectedTopic}’ 주제에 등록된 문제가 없습니다.`
+            ? `‘${selectedTopic.name}’ 주제에 등록된 문제가 없습니다.`
             : "이 카드에 등록된 문제가 없습니다.",
         );
         return;
@@ -85,7 +120,8 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
       setProblems(result);
       setRequestedCount(parsedCount);
       setCurrentIndex(0);
-      setShowAnswer(false);
+      setResults({});
+      resetCurrentAnswer();
       setStage("study");
     } catch (requestError) {
       if (requestError instanceof DOMException && requestError.name === "AbortError") return;
@@ -99,21 +135,54 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
     void loadProblemSet();
   };
 
+  const recordResult = (result: GradeResult) => {
+    if (!currentProblem) return;
+    setResults((current) => ({ ...current, [currentProblem.id]: result }));
+  };
+
+  const handleAutomaticGrade = () => {
+    if (!currentProblem || !automaticGradingReady) return;
+    if (!userAnswer) {
+      setError("답을 선택해 주세요.");
+      return;
+    }
+
+    setError(null);
+    setShowAnswer(true);
+    recordResult(userAnswer === currentProblem.answer ? "correct" : "incorrect");
+  };
+
+  const handleRevealForManualGrade = () => {
+    if (!userAnswer.trim()) {
+      setError("내 답안을 입력해 주세요.");
+      return;
+    }
+    setError(null);
+    setShowAnswer(true);
+  };
+
+  const handleSkipAutomaticGrade = () => {
+    setShowAnswer(true);
+    setError(null);
+    recordResult("ungraded");
+  };
+
   const handleNext = () => {
+    if (currentResult === null) return;
     if (currentIndex >= problems.length - 1) {
       setStage("complete");
       return;
     }
+    resetCurrentAnswer();
     setCurrentIndex((current) => current + 1);
-    setShowAnswer(false);
   };
 
   const handleChangeSettings = () => {
     setStage("setup");
     setProblems([]);
     setCurrentIndex(0);
-    setShowAnswer(false);
-    setError(null);
+    setResults({});
+    resetCurrentAnswer();
   };
 
   const modalTitle =
@@ -126,7 +195,7 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
   return (
     <Modal
       title={modalTitle}
-      description={`${card.title} · 채점 없이 문제와 답을 차례로 확인합니다.`}
+      description={`${card.title} · 객관식과 O/X는 자동 채점하고 나머지는 직접 판정합니다.`}
       onClose={onClose}
       size="wide"
     >
@@ -157,7 +226,7 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
                   disabled={topics.length === 0}
                   onChange={() => {
                     setScope("topic");
-                    setTopic((current) => current || topics[0] || "");
+                    setTopicId((current) => current || topics[0]?.id || "");
                   }}
                 />
                 <span>
@@ -168,17 +237,19 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
             </div>
           </fieldset>
 
-          <label className="field" htmlFor={topicId}>
+          <label className="field" htmlFor={topicSelectId}>
             <span>주제</span>
             <select
-              id={topicId}
-              value={topic}
-              onChange={(event) => setTopic(event.target.value)}
+              id={topicSelectId}
+              value={topicId}
+              onChange={(event) =>
+                setTopicId(event.target.value ? Number(event.target.value) : "")
+              }
               disabled={scope !== "topic"}
               required={scope === "topic"}
             >
-              {topics.map((item) => (
-                <option key={item} value={item}>{item}</option>
+              {topics.map((topic) => (
+                <option key={topic.id} value={topic.id}>{topic.name}</option>
               ))}
             </select>
           </label>
@@ -227,7 +298,7 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
           <div className="study-progress">
             <div>
               <strong>현재 {currentIndex + 1} / 전체 {problems.length}</strong>
-              <span>{selectedTopic || "카드 전체"}</span>
+              <span>{selectedTopic?.name || "카드 전체"}</span>
             </div>
             <progress value={currentIndex + 1} max={problems.length}>
               {currentIndex + 1} / {problems.length}
@@ -241,39 +312,149 @@ export function RandomStudyModal({ card, topics, onClose }: RandomStudyModalProp
           )}
 
           <article className="study-paper">
-            <span className="topic-badge">{currentProblem.topic}</span>
+            <div className="study-problem-meta">
+              <span className="topic-badge">{currentProblem.topic_name}</span>
+              <span className="problem-type-badge">
+                {problemTypeLabels[currentProblem.problem_type]}
+              </span>
+              <span className="grading-mode-badge">
+                {automaticGrading ? "자동 채점" : "직접 채점"}
+              </span>
+            </div>
             <h3 ref={questionRef} className="study-question" tabIndex={-1}>
-              {currentProblem.question}
+              <ProblemPrompt problem={currentProblem} />
             </h3>
 
-            <div className="study-answer" id={answerId} hidden={!showAnswer}>
-              <span>정답 · 해설</span>
-              <p>{currentProblem.answer || "등록된 정답이나 해설이 없습니다."}</p>
-            </div>
+            {responseOptions ? (
+              <fieldset className="study-response-options">
+                <legend>내 답</legend>
+                <div className="study-choice-grid">
+                  {responseOptions.map((option, index) => (
+                    <label key={`${index}-${option}`}>
+                      <input
+                        type="radio"
+                        name={responseName}
+                        value={option}
+                        checked={userAnswer === option}
+                        onChange={(event) => setUserAnswer(event.target.value)}
+                        disabled={currentResult !== null || !automaticGradingReady}
+                      />
+                      <span>
+                        {currentProblem.problem_type === "multiple_choice" && (
+                          <small>{index + 1}</small>
+                        )}
+                        {option}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ) : (
+              <label className="field study-response-field" htmlFor={userAnswerId}>
+                <span>내 답</span>
+                {currentProblem.problem_type === "essay" ? (
+                  <textarea
+                    id={userAnswerId}
+                    value={userAnswer}
+                    onChange={(event) => setUserAnswer(event.target.value)}
+                    placeholder="생각한 답을 직접 작성해 주세요."
+                    rows={5}
+                    disabled={showAnswer || currentResult !== null}
+                  />
+                ) : (
+                  <input
+                    id={userAnswerId}
+                    value={userAnswer}
+                    onChange={(event) => setUserAnswer(event.target.value)}
+                    placeholder={
+                      currentProblem.problem_type === "fill_blank"
+                        ? "빈칸에 들어갈 개념을 입력해 주세요."
+                        : "생각한 답을 입력해 주세요."
+                    }
+                    disabled={showAnswer || currentResult !== null}
+                  />
+                )}
+              </label>
+            )}
+
+            {automaticGrading && !automaticGradingReady && currentResult === null && (
+              <p className="study-notice study-notice--inside" role="alert">
+                이 문제는 정답 또는 선택지가 없어 자동 채점할 수 없습니다. 문제를 수정해 주세요.
+              </p>
+            )}
+
+            {error && <p className="form-error study-form-error" role="alert">{error}</p>}
+
+            {showAnswer && (
+              <div className="study-answer" id={answerId}>
+                <span>{automaticGrading ? "정답" : "기준 답안 · 해설"}</span>
+                <p>{currentProblem.answer || "등록된 기준 답안이나 해설이 없습니다."}</p>
+              </div>
+            )}
+
+            {currentResult && (
+              <div className={`study-grade-result study-grade-result--${currentResult}`} role="status">
+                <strong>
+                  {currentResult === "correct"
+                    ? "정답입니다"
+                    : currentResult === "incorrect"
+                      ? "오답입니다"
+                      : "채점에서 제외했습니다"}
+                </strong>
+                <p>
+                  {automaticGrading && currentResult !== "ungraded"
+                    ? "선택한 답과 등록된 정답을 비교했습니다."
+                    : currentResult === "ungraded"
+                      ? "정답을 등록한 뒤 다음 학습부터 자동 채점할 수 있습니다."
+                      : "내 답과 기준 답안을 비교해 직접 판정한 결과입니다."}
+                </p>
+              </div>
+            )}
           </article>
 
           <div className="study-actions">
-            <button
-              className="button button--secondary"
-              type="button"
-              aria-expanded={showAnswer}
-              aria-controls={answerId}
-              onClick={() => setShowAnswer((current) => !current)}
-            >
-              {showAnswer ? "정답 숨기기" : "정답 보기"}
-            </button>
-            <button className="button button--primary" type="button" onClick={handleNext}>
-              {currentIndex === problems.length - 1 ? "문제 묶음 완료" : "다음 문제"}
-            </button>
+            {currentResult ? (
+              <button className="button button--primary" type="button" onClick={handleNext}>
+                {currentIndex === problems.length - 1 ? "채점 결과 보기" : "다음 문제"}
+              </button>
+            ) : automaticGrading ? (
+              automaticGradingReady ? (
+                <button className="button button--primary" type="button" onClick={handleAutomaticGrade}>
+                  채점하기
+                </button>
+              ) : (
+                <button className="button button--secondary" type="button" onClick={handleSkipAutomaticGrade}>
+                  채점 제외
+                </button>
+              )
+            ) : showAnswer ? (
+              <>
+                <button className="button button--danger-ghost" type="button" onClick={() => recordResult("incorrect")}>
+                  오답으로 기록
+                </button>
+                <button className="button button--primary" type="button" onClick={() => recordResult("correct")}>
+                  정답으로 기록
+                </button>
+              </>
+            ) : (
+              <button className="button button--secondary" type="button" onClick={handleRevealForManualGrade}>
+                답안 확인
+              </button>
+            )}
           </div>
         </section>
       )}
 
       {stage === "complete" && (
-        <div className="study-complete" role="status" aria-live="polite">
+        <div className="study-complete" aria-live="polite">
           <span className="empty-index" aria-hidden="true">✓</span>
-          <h3>{problems.length}개 문제를 모두 확인했어요</h3>
-          <p>채점이나 점수는 저장하지 않았습니다. 같은 설정으로 새 문제 묶음을 다시 뽑을 수 있어요.</p>
+          <h3>{problems.length}개 문제 채점을 마쳤어요</h3>
+          <div className="study-result-summary" aria-label="채점 결과 요약">
+            <div><strong>{correctCount}</strong><span>정답</span></div>
+            <div><strong>{incorrectCount}</strong><span>오답</span></div>
+            <div><strong>{ungradedCount}</strong><span>채점 제외</span></div>
+          </div>
+          <p>채점 결과는 이번 문제 묶음에서만 유지되며 별도로 저장하지 않습니다.</p>
           <div className="study-actions">
             <button className="button button--ghost" type="button" onClick={handleChangeSettings}>
               설정 변경

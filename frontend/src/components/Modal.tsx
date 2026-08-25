@@ -6,15 +6,33 @@ interface ModalProps {
   children: ReactNode;
   description?: string;
   size?: "default" | "wide";
+  closeDisabled?: boolean;
 }
 
 const focusableSelector =
   'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ title, description, onClose, children, size = "default" }: ModalProps) {
+export function Modal({
+  title,
+  description,
+  onClose,
+  children,
+  size = "default",
+  closeDisabled = false,
+}: ModalProps) {
   const panelRef = useRef<HTMLElement>(null);
+  const closeDisabledRef = useRef(closeDisabled);
+  const onCloseRef = useRef(onClose);
   const titleId = useId();
   const descriptionId = useId();
+
+  useEffect(() => {
+    closeDisabledRef.current = closeDisabled;
+  }, [closeDisabled]);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -23,9 +41,9 @@ export function Modal({ title, description, onClose, children, size = "default" 
     (firstFocusable ?? panel)?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !closeDisabledRef.current) {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -55,13 +73,13 @@ export function Modal({ title, description, onClose, children, size = "default" 
       document.body.classList.remove("modal-open");
       previouslyFocused?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div
       className="modal-backdrop"
       onMouseDown={(event) => {
-        if (event.currentTarget === event.target) onClose();
+        if (!closeDisabled && event.currentTarget === event.target) onClose();
       }}
     >
       <section
@@ -79,7 +97,13 @@ export function Modal({ title, description, onClose, children, size = "default" 
             <h2 id={titleId}>{title}</h2>
             {description && <p id={descriptionId}>{description}</p>}
           </div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="창 닫기">
+          <button
+            className="icon-button"
+            type="button"
+            onClick={onClose}
+            aria-label="창 닫기"
+            disabled={closeDisabled}
+          >
             닫기
           </button>
         </header>

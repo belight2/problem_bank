@@ -1,4 +1,11 @@
-import type { Card, CardInput, Problem, ProblemInput } from "../types";
+import type {
+  Card,
+  CardInput,
+  Problem,
+  ProblemInput,
+  Topic,
+  TopicInput,
+} from "../types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 
@@ -56,14 +63,34 @@ export const cardApi = {
   remove: (cardId: number) => request<void>(`/cards/${cardId}`, { method: "DELETE" }),
 };
 
+export const topicApi = {
+  list: (cardId: number) => request<Topic[]>(`/cards/${cardId}/topics`),
+  create: (cardId: number, input: TopicInput) =>
+    request<Topic>(`/cards/${cardId}/topics`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (cardId: number, topicId: number, input: TopicInput) =>
+    request<Topic>(`/cards/${cardId}/topics/${topicId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  remove: (cardId: number, topicId: number) =>
+    request<void>(`/cards/${cardId}/topics/${topicId}`, { method: "DELETE" }),
+};
+
 export const problemApi = {
-  list: (cardId: number) => request<Problem[]>(`/cards/${cardId}/problems?limit=100`),
+  list: (cardId: number, topicId?: number) => {
+    const params = new URLSearchParams({ limit: "100" });
+    if (topicId !== undefined) params.set("topic_id", String(topicId));
+    return request<Problem[]>(`/cards/${cardId}/problems?${params.toString()}`);
+  },
   random: (
     cardId: number,
-    options: { count: number; topic?: string; signal?: AbortSignal },
+    options: { count: number; topicId?: number; signal?: AbortSignal },
   ) => {
     const params = new URLSearchParams({ limit: String(options.count) });
-    if (options.topic) params.set("topic", options.topic);
+    if (options.topicId !== undefined) params.set("topic_id", String(options.topicId));
     return request<Problem[]>(`/cards/${cardId}/problems/random?${params.toString()}`, {
       signal: options.signal,
     });

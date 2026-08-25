@@ -43,6 +43,7 @@ export function CardFormModal({ card, onClose, onSubmit }: CardFormModalProps) {
       title={card ? "카드 수정" : "새 카드 만들기"}
       description="공부할 시험이나 분야를 하나의 카드로 묶어 보세요."
       onClose={onClose}
+      closeDisabled={saving}
     >
       <form className="form-stack" onSubmit={handleSubmit}>
         <label className="field" htmlFor={titleId}>

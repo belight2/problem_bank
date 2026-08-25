@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { cardApi, getErrorMessage, problemApi } from "./api/client";
+import { cardApi, getErrorMessage, problemApi, topicApi } from "./api/client";
 import { CardFormModal } from "./components/CardFormModal";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { ProblemFormModal } from "./components/ProblemFormModal";
+import { ProblemOptions } from "./components/ProblemOptions";
+import { ProblemPrompt } from "./components/ProblemPrompt";
 import { RandomStudyModal } from "./components/RandomStudyModal";
-import type { Card, CardInput, Problem, ProblemInput } from "./types";
+import { TopicManagementModal } from "./components/TopicManagementModal";
+import { problemTypeLabels } from "./problemTypes";
+import type { Card, CardInput, Problem, ProblemInput, Topic } from "./types";
 
 const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   year: "numeric",
@@ -18,25 +22,23 @@ function App() {
   const [cardsLoading, setCardsLoading] = useState(true);
   const [appError, setAppError] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [topicsLoading, setTopicsLoading] = useState(false);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [problemsLoading, setProblemsLoading] = useState(false);
+  const [cardContentLoaded, setCardContentLoaded] = useState(false);
+  const cardContentRequestId = useRef(0);
 
   const [cardEditor, setCardEditor] = useState<Card | null | undefined>(undefined);
   const [problemEditor, setProblemEditor] = useState<Problem | null | undefined>(undefined);
   const [cardToDelete, setCardToDelete] = useState<Card | null>(null);
   const [problemToDelete, setProblemToDelete] = useState<Problem | null>(null);
   const [randomStudyOpen, setRandomStudyOpen] = useState(false);
+  const [topicManagerOpen, setTopicManagerOpen] = useState(false);
 
   const selectedCard = useMemo(
     () => cards.find((card) => card.id === selectedCardId) ?? null,
     [cards, selectedCardId],
-  );
-
-  const topics = useMemo(
-    () => [...new Set(problems.map((problem) => problem.topic))].sort((a, b) =>
-      a.localeCompare(b, "ko"),
-    ),
-    [problems],
   );
 
   const loadCards = useCallback(async () => {
@@ -55,15 +57,29 @@ function App() {
     }
   }, []);
 
-  const loadProblems = useCallback(async (cardId: number) => {
+  const loadCardContent = useCallback(async (cardId: number) => {
+    const requestId = ++cardContentRequestId.current;
+    setCardContentLoaded(false);
+    setTopicsLoading(true);
     setProblemsLoading(true);
     setAppError(null);
     try {
-      setProblems(await problemApi.list(cardId));
+      const [loadedTopics, loadedProblems] = await Promise.all([
+        topicApi.list(cardId),
+        problemApi.list(cardId),
+      ]);
+      if (requestId !== cardContentRequestId.current) return;
+      setTopics(loadedTopics);
+      setProblems(loadedProblems);
+      setCardContentLoaded(true);
     } catch (error) {
+      if (requestId !== cardContentRequestId.current) return;
       setAppError(getErrorMessage(error));
     } finally {
-      setProblemsLoading(false);
+      if (requestId === cardContentRequestId.current) {
+        setTopicsLoading(false);
+        setProblemsLoading(false);
+      }
     }
   }, []);
 
@@ -92,23 +108,29 @@ function App() {
   useEffect(() => {
     if (selectedCardId === null) return;
 
-    let ignore = false;
-    problemApi
-      .list(selectedCardId)
-      .then((result) => {
-        if (!ignore) setProblems(result);
+    const requestId = ++cardContentRequestId.current;
+    Promise.all([topicApi.list(selectedCardId), problemApi.list(selectedCardId)])
+      .then(([loadedTopics, loadedProblems]) => {
+        if (requestId !== cardContentRequestId.current) return;
+        setTopics(loadedTopics);
+        setProblems(loadedProblems);
+        setCardContentLoaded(true);
       })
       .catch((error: unknown) => {
-        if (!ignore) setAppError(getErrorMessage(error));
+        if (requestId !== cardContentRequestId.current) return;
+        setAppError(getErrorMessage(error));
       })
       .finally(() => {
-        if (!ignore) setProblemsLoading(false);
+        if (requestId === cardContentRequestId.current) {
+          setTopicsLoading(false);
+          setProblemsLoading(false);
+        }
       });
 
     return () => {
-      ignore = true;
+      cardContentRequestId.current += 1;
     };
-  }, [selectedCardId]);
+  }, [loadCardContent, selectedCardId]);
 
   const handleCardSubmit = async (input: CardInput) => {
     if (cardEditor) {
@@ -135,11 +157,40 @@ function App() {
     setProblemEditor(undefined);
   };
 
+  const handleTopicCreated = (topic: Topic) => {
+    setTopics((current) => [...current, topic].sort((a, b) => a.id - b.id));
+  };
+
+  const handleTopicUpdated = (topic: Topic) => {
+    setTopics((current) =>
+      current.map((currentTopic) => (currentTopic.id === topic.id ? topic : currentTopic)),
+    );
+    setProblems((current) =>
+      current.map((problem) =>
+        problem.topic_id === topic.id
+          ? { ...problem, topic_name: topic.name }
+          : problem,
+      ),
+    );
+  };
+
+  const handleTopicDeleted = (topicId: number) => {
+    setTopics((current) => current.filter((topic) => topic.id !== topicId));
+  };
+
   const handleDeleteCard = async () => {
     if (!cardToDelete) return;
     await cardApi.remove(cardToDelete.id);
     setCards((current) => current.filter((card) => card.id !== cardToDelete.id));
-    if (selectedCardId === cardToDelete.id) setSelectedCardId(null);
+    if (selectedCardId === cardToDelete.id) {
+      cardContentRequestId.current += 1;
+      setSelectedCardId(null);
+      setTopics([]);
+      setProblems([]);
+      setTopicsLoading(false);
+      setProblemsLoading(false);
+      setCardContentLoaded(false);
+    }
     setCardToDelete(null);
   };
 
@@ -151,17 +202,42 @@ function App() {
   };
 
   const openCard = (cardId: number) => {
+    setTopics([]);
     setProblems([]);
+    setTopicsLoading(true);
     setProblemsLoading(true);
+    setCardContentLoaded(false);
     setAppError(null);
     setSelectedCardId(cardId);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const closeCard = () => {
+    cardContentRequestId.current += 1;
+    setAppError(null);
+    setSelectedCardId(null);
+    setTopics([]);
+    setProblems([]);
+    setTopicsLoading(false);
+    setProblemsLoading(false);
+    setCardContentLoaded(false);
+    setTopicManagerOpen(false);
+    setRandomStudyOpen(false);
+  };
+
+  const openProblemCreator = () => {
+    if (!cardContentLoaded || topicsLoading) return;
+    if (topics.length === 0) {
+      setTopicManagerOpen(true);
+      return;
+    }
+    setProblemEditor(null);
+  };
+
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button className="brand" type="button" onClick={() => setSelectedCardId(null)}>
+        <button className="brand" type="button" onClick={closeCard}>
           <span className="brand-mark" aria-hidden="true">PB</span>
           <span>
             <strong>나의 문제 은행</strong>
@@ -179,7 +255,11 @@ function App() {
             <span>{appError}</span>
             <button
               type="button"
-              onClick={() => selectedCardId === null ? void loadCards() : void loadProblems(selectedCardId)}
+              onClick={() =>
+                selectedCardId === null
+                  ? void loadCards()
+                  : void loadCardContent(selectedCardId)
+              }
             >
               다시 시도
             </button>
@@ -188,7 +268,7 @@ function App() {
 
         {selectedCard ? (
           <section className="card-detail">
-            <button className="back-link" type="button" onClick={() => setSelectedCardId(null)}>
+            <button className="back-link" type="button" onClick={closeCard}>
               카드 목록으로
             </button>
 
@@ -212,15 +292,30 @@ function App() {
               <p className="toolbar-note">문제를 관리하고, 원하는 개수만큼 무작위로 확인할 수 있어요.</p>
               <div className="toolbar-actions">
                 <button
+                  className="button button--ghost"
+                  type="button"
+                  onClick={() => setTopicManagerOpen(true)}
+                  disabled={!cardContentLoaded || topicsLoading}
+                >
+                  주제 관리
+                </button>
+                <button
                   className="button button--secondary"
                   type="button"
                   onClick={() => setRandomStudyOpen(true)}
-                  disabled={problemsLoading || problems.length === 0}
+                  disabled={!cardContentLoaded || problemsLoading || problems.length === 0}
                 >
                   랜덤 문제 풀기
                 </button>
-                <button className="button button--primary" type="button" onClick={() => setProblemEditor(null)}>
-                  새 문제
+                <button
+                  className="button button--primary"
+                  type="button"
+                  onClick={openProblemCreator}
+                  disabled={!cardContentLoaded || topicsLoading}
+                >
+                  {cardContentLoaded && topics.length === 0
+                    ? "주제 먼저 만들기"
+                    : "새 문제"}
                 </button>
               </div>
             </div>
@@ -233,9 +328,15 @@ function App() {
               <span>{problems.length}개</span>
             </div>
 
-            {problemsLoading ? (
+            {problemsLoading || topicsLoading ? (
               <div className="problem-list" aria-label="문제 불러오는 중">
                 {[1, 2, 3].map((item) => <div className="problem-skeleton" key={item} />)}
+              </div>
+            ) : !cardContentLoaded ? (
+              <div className="empty-state empty-state--compact">
+                <span className="empty-index" aria-hidden="true">!</span>
+                <h3>카드 내용을 불러오지 못했어요</h3>
+                <p>위의 다시 시도 버튼으로 주제와 문제를 함께 불러와 주세요.</p>
               </div>
             ) : problems.length > 0 ? (
               <div className="problem-list">
@@ -244,10 +345,16 @@ function App() {
                     <div className="problem-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</div>
                     <div className="problem-content">
                       <div className="problem-meta">
-                        <span className="topic-badge">{problem.topic}</span>
+                        <span className="topic-badge">{problem.topic_name}</span>
+                        <span className="problem-type-badge">
+                          {problemTypeLabels[problem.problem_type]}
+                        </span>
                         <span>{dateFormatter.format(new Date(problem.created_at))}</span>
                       </div>
-                      <p className="problem-question">{problem.question}</p>
+                      <p className="problem-question">
+                        <ProblemPrompt problem={problem} />
+                      </p>
+                      <ProblemOptions problem={problem} />
                       <details className="answer-details">
                         <summary>정답 · 해설 보기</summary>
                         <p>{problem.answer || "등록된 정답이나 해설이 없습니다."}</p>
@@ -263,10 +370,23 @@ function App() {
             ) : (
               <div className="empty-state">
                 <span className="empty-index" aria-hidden="true">?</span>
-                <h3>첫 문제를 만들어 보세요</h3>
-                <p>주제와 문제를 직접 적고 필요하면 정답이나 해설도 남겨 보세요.</p>
-                <button className="button button--primary" type="button" onClick={() => setProblemEditor(null)}>
-                  문제 만들기
+                <h3>
+                  {topics.length === 0
+                    ? "문제를 만들기 전에 주제를 추가해 주세요"
+                    : "첫 문제를 만들어 보세요"}
+                </h3>
+                <p>
+                  {topics.length === 0
+                    ? "주제를 만들면 새 문제에서 기존 주제를 선택할 수 있어요."
+                    : "주제와 유형을 고르고 필요하면 정답이나 해설도 남겨 보세요."}
+                </p>
+                <button
+                  className="button button--primary"
+                  type="button"
+                  onClick={openProblemCreator}
+                  disabled={!cardContentLoaded || topicsLoading}
+                >
+                  {topics.length === 0 ? "주제 만들기" : "문제 만들기"}
                 </button>
               </div>
             )}
@@ -334,7 +454,7 @@ function App() {
 
       <footer>
         <span>Problem Bank</span>
-        <span>채점 없이, 나만의 속도로.</span>
+        <span>자동 채점과 직접 판단을 필요한 만큼.</span>
       </footer>
 
       {cardEditor !== undefined && (
@@ -343,6 +463,7 @@ function App() {
       {problemEditor !== undefined && (
         <ProblemFormModal
           problem={problemEditor}
+          topics={topics}
           onClose={() => setProblemEditor(undefined)}
           onSubmit={handleProblemSubmit}
         />
@@ -350,7 +471,7 @@ function App() {
       {cardToDelete && (
         <ConfirmDialog
           title="카드를 삭제할까요?"
-          message={`‘${cardToDelete.title}’ 카드 안의 문제도 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
+          message={`‘${cardToDelete.title}’ 카드 안의 주제와 문제도 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
           confirmLabel="카드와 문제 삭제"
           onClose={() => setCardToDelete(null)}
           onConfirm={handleDeleteCard}
@@ -370,6 +491,16 @@ function App() {
           card={selectedCard}
           topics={topics}
           onClose={() => setRandomStudyOpen(false)}
+        />
+      )}
+      {topicManagerOpen && selectedCard && (
+        <TopicManagementModal
+          card={selectedCard}
+          topics={topics}
+          onCreated={handleTopicCreated}
+          onUpdated={handleTopicUpdated}
+          onDeleted={handleTopicDeleted}
+          onClose={() => setTopicManagerOpen(false)}
         />
       )}
     </div>

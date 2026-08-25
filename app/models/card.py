@@ -8,6 +8,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.problem import Problem
+    from app.models.topic import Topic
 
 
 class Card(Base):
@@ -22,5 +23,8 @@ class Card(Base):
     )
 
     problems: Mapped[list["Problem"]] = relationship(
+        back_populates="card", cascade="all, delete-orphan"
+    )
+    topics: Mapped[list["Topic"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
     )

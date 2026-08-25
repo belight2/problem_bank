@@ -33,7 +33,12 @@ export function ConfirmDialog({
   };
 
   return (
-    <Modal title={title} description={message} onClose={onClose}>
+    <Modal
+      title={title}
+      description={message}
+      onClose={onClose}
+      closeDisabled={deleting}
+    >
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="modal-actions">
         <button className="button button--ghost" type="button" onClick={onClose} disabled={deleting}>
