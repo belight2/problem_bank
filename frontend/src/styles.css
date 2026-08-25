@@ -1136,6 +1136,7 @@ footer {
 
 .choice-fieldset,
 .scope-fieldset,
+.fill-blank-editor,
 .study-response-options {
   min-width: 0;
   margin: 0;
@@ -1147,8 +1148,86 @@ footer {
 
 .choice-fieldset legend,
 .scope-fieldset legend,
+.fill-blank-editor legend,
 .study-response-options legend {
   padding: 0 0.45rem;
+}
+
+.fill-blank-editor {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.fill-blank-editor legend {
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.fill-blank-compose,
+.fill-blank-preview-wrap {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.fill-blank-compose-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.fill-blank-status {
+  min-width: 0;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fill-blank-status--ready {
+  color: var(--primary-strong);
+  font-weight: 650;
+}
+
+.fill-blank-preview {
+  min-height: 150px;
+  padding: 1.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 1.1rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  animation: feedback-enter 200ms ease-out both;
+}
+
+.fill-blank-preview-gap {
+  display: inline-block;
+  min-width: 6em;
+  margin: 0 0.3em;
+  padding: 0.15rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 42%, var(--border));
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  vertical-align: baseline;
+  transition: transform 100ms ease, border-color 100ms ease, background-color 100ms ease;
+}
+
+.fill-blank-preview-gap:hover {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 14%, var(--surface));
+  transform: translateY(-1px);
+}
+
+.fill-blank-preview-gap:active {
+  transform: translateY(1px) scale(0.98);
 }
 
 .choice-editor-heading {
