@@ -19,6 +19,7 @@ import type {
   Problem,
   ProblemType,
   RandomStudyPreset,
+  RandomStudySelectionMode,
   Topic,
 } from "../types";
 import { Modal } from "./Modal";
@@ -45,6 +46,20 @@ interface StudyConfiguration {
   problemCount: number;
   topicId?: number;
   presetId: number | null;
+  selectionMode: RandomStudySelectionMode;
+  incorrectRateThreshold: number;
+  minimumAttemptCount: number;
+  incorrectCountThreshold: number;
+}
+
+function getSelectionSummary(configuration: StudyConfiguration) {
+  if (configuration.selectionMode === "incorrect_rate") {
+    return `오답률 ${configuration.incorrectRateThreshold}% 이상 · 최소 ${configuration.minimumAttemptCount}회`;
+  }
+  if (configuration.selectionMode === "incorrect_count") {
+    return `오답 ${configuration.incorrectCountThreshold}회 이상`;
+  }
+  return "전체 문제";
 }
 
 function isAutomaticallyGraded(problemType: ProblemType) {
@@ -61,6 +76,12 @@ export function RandomStudyModal({
   const topicScopeId = useId();
   const topicSelectId = useId();
   const countId = useId();
+  const allProblemsId = useId();
+  const incorrectRateId = useId();
+  const incorrectCountId = useId();
+  const incorrectRateThresholdId = useId();
+  const minimumAttemptCountId = useId();
+  const incorrectCountThresholdId = useId();
   const presetNameId = useId();
   const presetDescriptionId = useId();
   const userAnswerId = useId();
@@ -72,10 +93,18 @@ export function RandomStudyModal({
   const [scope, setScope] = useState<StudyScope>("all");
   const [topicId, setTopicId] = useState<number | "">(topics[0]?.id ?? "");
   const [count, setCount] = useState("10");
+  const [selectionMode, setSelectionMode] = useState<RandomStudySelectionMode>("all");
+  const [incorrectRateThreshold, setIncorrectRateThreshold] = useState("50");
+  const [minimumAttemptCount, setMinimumAttemptCount] = useState("3");
+  const [incorrectCountThreshold, setIncorrectCountThreshold] = useState("1");
   const [activePresetId, setActivePresetId] = useState<number | null>(null);
   const [savedConfiguration, setSavedConfiguration] = useState<StudyConfiguration>({
     problemCount: 10,
     presetId: null,
+    selectionMode: "all",
+    incorrectRateThreshold: 50,
+    minimumAttemptCount: 3,
+    incorrectCountThreshold: 1,
   });
   const [presets, setPresets] = useState<RandomStudyPreset[]>([]);
   const [editingPresetId, setEditingPresetId] = useState<number | null>(null);
@@ -121,6 +150,10 @@ export function RandomStudyModal({
     setTopicId(configuredTopic?.id ?? topics[0]?.id ?? "");
     setCount(String(configuration.problemCount));
     setActivePresetId(configuration.presetId);
+    setSelectionMode(configuration.selectionMode);
+    setIncorrectRateThreshold(String(configuration.incorrectRateThreshold));
+    setMinimumAttemptCount(String(configuration.minimumAttemptCount));
+    setIncorrectCountThreshold(String(configuration.incorrectCountThreshold));
     setSavedConfiguration(configuration);
   }, [topics]);
 
@@ -131,6 +164,10 @@ export function RandomStudyModal({
     setScope(configuredTopic ? "topic" : "all");
     setTopicId(configuredTopic?.id ?? topics[0]?.id ?? "");
     setCount(String(configuration.problemCount));
+    setSelectionMode(configuration.selectionMode);
+    setIncorrectRateThreshold(String(configuration.incorrectRateThreshold));
+    setMinimumAttemptCount(String(configuration.minimumAttemptCount));
+    setIncorrectCountThreshold(String(configuration.incorrectCountThreshold));
   };
 
   const getConfiguration = (): StudyConfiguration | null => {
@@ -143,10 +180,53 @@ export function RandomStudyModal({
       setError("문제를 가져올 주제를 선택해 주세요.");
       return null;
     }
+    const parsedRateThreshold = Number(incorrectRateThreshold);
+    const parsedMinimumAttemptCount = Number(minimumAttemptCount);
+    const parsedIncorrectCountThreshold = Number(incorrectCountThreshold);
+    if (
+      selectionMode === "incorrect_rate"
+      && (!Number.isInteger(parsedRateThreshold)
+        || parsedRateThreshold < 1
+        || parsedRateThreshold > 100)
+    ) {
+      setError("오답률은 1부터 100 사이의 정수로 입력해 주세요.");
+      return null;
+    }
+    if (
+      selectionMode === "incorrect_rate"
+      && (!Number.isInteger(parsedMinimumAttemptCount) || parsedMinimumAttemptCount < 1)
+    ) {
+      setError("최소 풀이 횟수는 1 이상의 정수로 입력해 주세요.");
+      return null;
+    }
+    if (
+      selectionMode === "incorrect_count"
+      && (!Number.isInteger(parsedIncorrectCountThreshold) || parsedIncorrectCountThreshold < 1)
+    ) {
+      setError("오답 횟수는 1 이상의 정수로 입력해 주세요.");
+      return null;
+    }
+    const normalizedRateThreshold = Number.isInteger(parsedRateThreshold)
+      && parsedRateThreshold >= 1
+      && parsedRateThreshold <= 100
+      ? parsedRateThreshold
+      : 50;
+    const normalizedMinimumAttemptCount = Number.isInteger(parsedMinimumAttemptCount)
+      && parsedMinimumAttemptCount >= 1
+      ? parsedMinimumAttemptCount
+      : 3;
+    const normalizedIncorrectCountThreshold = Number.isInteger(parsedIncorrectCountThreshold)
+      && parsedIncorrectCountThreshold >= 1
+      ? parsedIncorrectCountThreshold
+      : 1;
     return {
       problemCount: parsedCount,
       topicId: selectedTopic?.id,
       presetId: activePresetId,
+      selectionMode,
+      incorrectRateThreshold: normalizedRateThreshold,
+      minimumAttemptCount: normalizedMinimumAttemptCount,
+      incorrectCountThreshold: normalizedIncorrectCountThreshold,
     };
   };
 
@@ -172,6 +252,10 @@ export function RandomStudyModal({
             problemCount: savedSettings.problem_count,
             topicId: savedSettings.topic_id ?? undefined,
             presetId: presetExists ? savedSettings.preset_id : null,
+            selectionMode: savedSettings.selection_mode,
+            incorrectRateThreshold: savedSettings.incorrect_rate_threshold,
+            minimumAttemptCount: savedSettings.minimum_attempt_count,
+            incorrectCountThreshold: savedSettings.incorrect_count_threshold,
           });
         }
         setStage("overview");
@@ -210,20 +294,30 @@ export function RandomStudyModal({
           problem_count: configuration.problemCount,
           topic_id: configuredTopic?.id ?? null,
           preset_id: configuration.presetId,
+          selection_mode: configuration.selectionMode,
+          incorrect_rate_threshold: configuration.incorrectRateThreshold,
+          minimum_attempt_count: configuration.minimumAttemptCount,
+          incorrect_count_threshold: configuration.incorrectCountThreshold,
         },
         controller.signal,
       );
       const result = await problemApi.random(card.id, {
         count: savedSettings.problem_count,
         topicId: savedSettings.topic_id ?? undefined,
+        selectionMode: savedSettings.selection_mode,
+        incorrectRateThreshold: savedSettings.incorrect_rate_threshold,
+        minimumAttemptCount: savedSettings.minimum_attempt_count,
+        incorrectCountThreshold: savedSettings.incorrect_count_threshold,
         signal: controller.signal,
       });
       if (result.problems.length === 0 || result.session_id === null) {
         setStage("overview");
         setError(
-          configuredTopic
-            ? `‘${configuredTopic.name}’ 주제에 등록된 문제가 없습니다.`
-            : "이 카드에 등록된 문제가 없습니다.",
+          configuration.selectionMode !== "all"
+            ? "설정한 출제 기준에 맞는 문제가 없습니다."
+            : configuredTopic
+              ? `‘${configuredTopic.name}’ 주제에 등록된 문제가 없습니다.`
+              : "이 카드에 등록된 문제가 없습니다.",
         );
         return;
       }
@@ -232,6 +326,10 @@ export function RandomStudyModal({
         problemCount: savedSettings.problem_count,
         topicId: savedSettings.topic_id ?? undefined,
         presetId: savedSettings.preset_id,
+        selectionMode: savedSettings.selection_mode,
+        incorrectRateThreshold: savedSettings.incorrect_rate_threshold,
+        minimumAttemptCount: savedSettings.minimum_attempt_count,
+        incorrectCountThreshold: savedSettings.incorrect_count_threshold,
       });
       setProblems(result.problems);
       setStudySessionId(result.session_id);
@@ -272,6 +370,10 @@ export function RandomStudyModal({
       problemCount: preset.problem_count,
       topicId: preset.topic_id ?? undefined,
       presetId: preset.id,
+      selectionMode: preset.selection_mode,
+      incorrectRateThreshold: preset.incorrect_rate_threshold,
+      minimumAttemptCount: preset.minimum_attempt_count,
+      incorrectCountThreshold: preset.incorrect_count_threshold,
     });
   };
 
@@ -309,6 +411,10 @@ export function RandomStudyModal({
         description: presetDescription.trim() || null,
         topic_id: configuration.topicId ?? null,
         problem_count: configuration.problemCount,
+        selection_mode: configuration.selectionMode,
+        incorrect_rate_threshold: configuration.incorrectRateThreshold,
+        minimum_attempt_count: configuration.minimumAttemptCount,
+        incorrect_count_threshold: configuration.incorrectCountThreshold,
       };
       const savedPreset = editingPresetId === null
         ? await randomStudyPresetApi.create(card.id, input)
@@ -317,6 +423,10 @@ export function RandomStudyModal({
         problem_count: savedPreset.problem_count,
         topic_id: savedPreset.topic_id,
         preset_id: savedPreset.id,
+        selection_mode: savedPreset.selection_mode,
+        incorrect_rate_threshold: savedPreset.incorrect_rate_threshold,
+        minimum_attempt_count: savedPreset.minimum_attempt_count,
+        incorrect_count_threshold: savedPreset.incorrect_count_threshold,
       });
 
       setPresets((current) => {
@@ -329,6 +439,10 @@ export function RandomStudyModal({
         problemCount: savedSettings.problem_count,
         topicId: savedSettings.topic_id ?? undefined,
         presetId: savedPreset.id,
+        selectionMode: savedSettings.selection_mode,
+        incorrectRateThreshold: savedSettings.incorrect_rate_threshold,
+        minimumAttemptCount: savedSettings.minimum_attempt_count,
+        incorrectCountThreshold: savedSettings.incorrect_count_threshold,
       });
       setEditingPresetId(savedPreset.id);
       setStage("overview");
@@ -348,11 +462,19 @@ export function RandomStudyModal({
         problem_count: editingPreset.problem_count,
         topic_id: editingPreset.topic_id,
         preset_id: editingPreset.id,
+        selection_mode: editingPreset.selection_mode,
+        incorrect_rate_threshold: editingPreset.incorrect_rate_threshold,
+        minimum_attempt_count: editingPreset.minimum_attempt_count,
+        incorrect_count_threshold: editingPreset.incorrect_count_threshold,
       });
       applyConfiguration({
         problemCount: savedSettings.problem_count,
         topicId: savedSettings.topic_id ?? undefined,
         presetId: editingPreset.id,
+        selectionMode: savedSettings.selection_mode,
+        incorrectRateThreshold: savedSettings.incorrect_rate_threshold,
+        minimumAttemptCount: savedSettings.minimum_attempt_count,
+        incorrectCountThreshold: savedSettings.incorrect_count_threshold,
       });
       setStage("overview");
     } catch (requestError) {
@@ -491,6 +613,10 @@ export function RandomStudyModal({
               <span>문제 개수</span>
               <strong>{count}개</strong>
             </div>
+            <div>
+              <span>출제 기준</span>
+              <strong>{getSelectionSummary(savedConfiguration)}</strong>
+            </div>
           </div>
 
           {error && <p className="form-error" role="alert">{error}</p>}
@@ -527,6 +653,15 @@ export function RandomStudyModal({
                       ? "카드 전체"
                       : topics.find((topic) => topic.id === preset.topic_id)?.name ?? "주제 없음"}
                     {` · ${preset.problem_count}개`}
+                    {` · ${getSelectionSummary({
+                      problemCount: preset.problem_count,
+                      topicId: preset.topic_id ?? undefined,
+                      presetId: preset.id,
+                      selectionMode: preset.selection_mode,
+                      incorrectRateThreshold: preset.incorrect_rate_threshold,
+                      minimumAttemptCount: preset.minimum_attempt_count,
+                      incorrectCountThreshold: preset.incorrect_count_threshold,
+                    })}`}
                   </small>
                 </button>
               ))}
@@ -621,6 +756,90 @@ export function RandomStudyModal({
               </label>
             </div>
 
+            <fieldset className="selection-fieldset">
+              <legend>출제 기준</legend>
+              <div className="selection-options">
+                <label htmlFor={allProblemsId}>
+                  <input
+                    id={allProblemsId}
+                    type="radio"
+                    name="selection-mode"
+                    checked={selectionMode === "all"}
+                    onChange={() => setSelectionMode("all")}
+                  />
+                  <span><strong>전체 문제</strong></span>
+                </label>
+                <label htmlFor={incorrectRateId}>
+                  <input
+                    id={incorrectRateId}
+                    type="radio"
+                    name="selection-mode"
+                    checked={selectionMode === "incorrect_rate"}
+                    onChange={() => setSelectionMode("incorrect_rate")}
+                  />
+                  <span><strong>오답률</strong></span>
+                </label>
+                <label htmlFor={incorrectCountId}>
+                  <input
+                    id={incorrectCountId}
+                    type="radio"
+                    name="selection-mode"
+                    checked={selectionMode === "incorrect_count"}
+                    onChange={() => setSelectionMode("incorrect_count")}
+                  />
+                  <span><strong>오답 횟수</strong></span>
+                </label>
+              </div>
+            </fieldset>
+
+            {selectionMode === "incorrect_rate" && (
+              <div className="threshold-value-grid">
+                <label className="field" htmlFor={incorrectRateThresholdId}>
+                  <span>오답률 기준 (%)</span>
+                  <input
+                    id={incorrectRateThresholdId}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={incorrectRateThreshold}
+                    onChange={(event) => setIncorrectRateThreshold(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className="field" htmlFor={minimumAttemptCountId}>
+                  <span>최소 풀이 횟수</span>
+                  <input
+                    id={minimumAttemptCountId}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    step={1}
+                    value={minimumAttemptCount}
+                    onChange={(event) => setMinimumAttemptCount(event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+            )}
+
+            {selectionMode === "incorrect_count" && (
+              <label className="field threshold-single-field" htmlFor={incorrectCountThresholdId}>
+                <span>오답 횟수 기준</span>
+                <input
+                  id={incorrectCountThresholdId}
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
+                  value={incorrectCountThreshold}
+                  onChange={(event) => setIncorrectCountThreshold(event.target.value)}
+                  required
+                />
+              </label>
+            )}
+
             {error && <p className="form-error" role="alert">{error}</p>}
 
             <div className="preset-editor-actions">
@@ -684,7 +903,7 @@ export function RandomStudyModal({
 
           {problems.length < requestedCount && (
             <p className="study-notice" role="status">
-              요청한 {requestedCount}개 중 등록된 문제 {problems.length}개를 제공했습니다.
+              요청한 {requestedCount}개 중 제공 가능한 문제 {problems.length}개를 불러왔습니다.
             </p>
           )}
 

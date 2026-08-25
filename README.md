@@ -147,8 +147,8 @@ npm run dev
 | `POST` | `/cards/{card_id}/problems` | 문제 생성 |
 | `GET` | `/cards/{card_id}/problems` | 문제 목록 조회 |
 | `GET` | `/cards/{card_id}/problems?topic_id={topic_id}` | 주제별 문제 조회 |
-| `POST` | `/cards/{card_id}/problems/random` | 카드 전체에서 가중치 기반 문제 묶음 생성 |
-| `POST` | `/cards/{card_id}/problems/random?topic_id={topic_id}` | 특정 주제에서 가중치 기반 문제 묶음 생성 |
+| `POST` | `/cards/{card_id}/problems/random` | 설정한 출제 기준으로 가중치 기반 문제 묶음 생성 |
+| `POST` | `/cards/{card_id}/problems/random?topic_id={topic_id}` | 특정 주제에서 설정한 출제 기준으로 문제 묶음 생성 |
 | `POST` | `/cards/{card_id}/problems/random/{session_id}/results` | 문제 묶음의 채점 결과 기록 |
 | `GET` | `/cards/{card_id}/problems/{problem_id}` | 문제 단건 조회 |
 | `PATCH` | `/cards/{card_id}/problems/{problem_id}` | 문제 수정 |
@@ -180,7 +180,9 @@ npm run dev
 
 한 문제 묶음 안에서는 가중치 추출 후 선택된 문제를 후보에서 제거하므로 중복되지 않습니다. 문제 묶음을 만들 때 출제 횟수를 올리고, 전체 채점 완료 시 정답·오답 횟수를 반영합니다. 동일 학습 세션의 결과가 다시 전송돼도 횟수는 중복 집계되지 않습니다.
 
-프론트엔드에서는 카드 전체 또는 등록된 특정 주제를 범위로 정하고, 1~100 사이의 문제 개수를 직접 입력합니다. 한 번 반환된 문제 묶음 안에는 같은 문제가 중복되지 않으며, 요청한 개수보다 등록된 문제가 적으면 존재하는 문제만 제공합니다. 문제 제공 기준은 [문제 제공 및 랜덤 로직 기획서](docs/problem-delivery-random-plan.md)에 정리되어 있습니다.
+출제 기준은 전체 문제, 오답률, 오답 횟수 중에서 선택합니다. 오답률 기준은 `오답 횟수 / (정답 횟수 + 오답 횟수)`로 계산하고 최소 풀이 횟수를 함께 적용합니다. 오답 횟수 기준은 누적 오답 횟수가 설정값 이상인 문제만 후보로 사용합니다. 조건을 통과한 후보 안에서는 기존 가중치 추출을 그대로 적용합니다.
+
+프론트엔드에서는 카드 전체 또는 등록된 특정 주제를 범위로 정하고, 1~100 사이의 문제 개수와 출제 기준을 설정합니다. 이 값은 기본 설정과 프리셋에 저장됩니다. 한 번 반환된 문제 묶음 안에는 같은 문제가 중복되지 않으며, 요청한 개수보다 조건을 만족하는 문제가 적으면 존재하는 문제만 제공합니다. 문제 제공 기준은 [문제 제공 및 랜덤 로직 기획서](docs/problem-delivery-random-plan.md)에 정리되어 있습니다.
 
 ## 테스트와 코드 검사
 

@@ -6,6 +6,7 @@ import type {
   RandomProblemSet,
   RandomStudyPreset,
   RandomStudyPresetInput,
+  RandomStudySelectionMode,
   RandomStudySettings,
   RandomStudySettingsInput,
   StudyResultInput,
@@ -93,10 +94,22 @@ export const problemApi = {
   },
   random: (
     cardId: number,
-    options: { count: number; topicId?: number; signal?: AbortSignal },
+    options: {
+      count: number;
+      topicId?: number;
+      selectionMode: RandomStudySelectionMode;
+      incorrectRateThreshold: number;
+      minimumAttemptCount: number;
+      incorrectCountThreshold: number;
+      signal?: AbortSignal;
+    },
   ) => {
     const params = new URLSearchParams({ limit: String(options.count) });
     if (options.topicId !== undefined) params.set("topic_id", String(options.topicId));
+    params.set("selection_mode", options.selectionMode);
+    params.set("incorrect_rate_threshold", String(options.incorrectRateThreshold));
+    params.set("minimum_attempt_count", String(options.minimumAttemptCount));
+    params.set("incorrect_count_threshold", String(options.incorrectCountThreshold));
     return request<RandomProblemSet>(`/cards/${cardId}/problems/random?${params.toString()}`, {
       method: "POST",
       signal: options.signal,

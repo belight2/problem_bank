@@ -105,6 +105,16 @@ POST /cards/{card_id}/problems/random/{session_id}/results
 
 현재 `limit`은 1부터 100까지 허용한다. 새로운 묶음을 요청할 때 이전 결과는 기억하지 않으므로 묶음 간 중복은 허용된다. 묶음 간 중복까지 막는 기능은 학습 이력 범위가 되므로 초기 추천안에서는 제외한다.
 
+출제 후보는 `selection_mode`로 제한할 수 있다.
+
+| 값 | 후보 조건 |
+| --- | --- |
+| `all` | 범위 안의 모든 문제 |
+| `incorrect_rate` | 최소 풀이 횟수를 충족하고 오답률이 임계치 이상인 문제 |
+| `incorrect_count` | 누적 오답 횟수가 임계치 이상인 문제 |
+
+오답률은 `incorrect_count / (correct_count + incorrect_count)`로 계산한다. 출제만 되고 채점되지 않은 경우가 있으므로 `presented_count`는 오답률 분모에 사용하지 않는다. 필터를 통과한 후보 안에서는 기존 가중치 기반 비복원 추출을 적용한다.
+
 ## 5. 진행 상태 저장 후보
 
 개인용 초기 버전은 서버 세션이나 Redis 없이 브라우저에서 관리할 수 있다.
@@ -115,6 +125,7 @@ POST /cards/{card_id}/problems/random/{session_id}/results
 cardId
 topicId 또는 null
 설정한 문제 개수
+출제 기준과 임계치
 추출된 Problem 배열
 현재 cursor
 문제별 사용자 답안

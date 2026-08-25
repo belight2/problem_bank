@@ -64,11 +64,17 @@ export interface StudyResultInput {
   result: "correct" | "incorrect" | "ungraded";
 }
 
+export type RandomStudySelectionMode = "all" | "incorrect_rate" | "incorrect_count";
+
 export interface RandomStudySettings {
   card_id: number;
   topic_id: number | null;
   preset_id: number | null;
   problem_count: number;
+  selection_mode: RandomStudySelectionMode;
+  incorrect_rate_threshold: number;
+  minimum_attempt_count: number;
+  incorrect_count_threshold: number;
   created_at: string;
   updated_at: string;
 }
@@ -77,6 +83,10 @@ export interface RandomStudySettingsInput {
   topic_id: number | null;
   preset_id: number | null;
   problem_count: number;
+  selection_mode: RandomStudySelectionMode;
+  incorrect_rate_threshold: number;
+  minimum_attempt_count: number;
+  incorrect_count_threshold: number;
 }
 
 export interface RandomStudyPreset {
@@ -86,6 +96,10 @@ export interface RandomStudyPreset {
   description: string | null;
   topic_id: number | null;
   problem_count: number;
+  selection_mode: RandomStudySelectionMode;
+  incorrect_rate_threshold: number;
+  minimum_attempt_count: number;
+  incorrect_count_threshold: number;
   created_at: string;
   updated_at: string;
 }
@@ -95,4 +109,8 @@ export interface RandomStudyPresetInput {
   description: string | null;
   topic_id: number | null;
   problem_count: number;
+  selection_mode: RandomStudySelectionMode;
+  incorrect_rate_threshold: number;
+  minimum_attempt_count: number;
+  incorrect_count_threshold: number;
 }
