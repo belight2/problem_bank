@@ -1,4 +1,10 @@
-import { useId, useRef, useState, type FormEvent } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 
 import { getErrorMessage } from "../api/client";
 import { FILL_BLANK_MARKER, problemTypeOptions } from "../problemTypes";
@@ -57,6 +63,9 @@ export function ProblemFormModal({
     problem?.problem_type === "essay" ? (problem.answer ?? "") : "",
   );
   const [choices, setChoices] = useState(initialChoices);
+  const [completedChoices, setCompletedChoices] = useState(
+    initialChoices.map((choice) => Boolean(choice.trim())),
+  );
   const [correctChoiceIndex, setCorrectChoiceIndex] = useState<number | null>(
     initialCorrectChoiceIndex >= 0 ? initialCorrectChoiceIndex : null,
   );
@@ -81,17 +90,82 @@ export function ProblemFormModal({
 
   const addChoice = () => {
     setChoices((current) => (current.length < 10 ? [...current, ""] : current));
+    setCompletedChoices((current) =>
+      current.length < 10 ? [...current, false] : current,
+    );
   };
 
   const removeChoice = (index: number) => {
     if (choices.length <= 2) return;
 
     setChoices((current) => current.filter((_, choiceIndex) => choiceIndex !== index));
+    setCompletedChoices((current) =>
+      current.filter((_, choiceIndex) => choiceIndex !== index),
+    );
     setCorrectChoiceIndex((current) => {
       if (current === null) return null;
       if (current === index) return null;
       return current > index ? current - 1 : current;
     });
+  };
+
+  const completeChoice = (index: number) => {
+    const normalizedChoice = choices[index]?.trim() ?? "";
+    if (!normalizedChoice) {
+      setError(`선택지 ${index + 1} 내용을 입력해 주세요.`);
+      return false;
+    }
+
+    setChoices((current) =>
+      current.map((choice, choiceIndex) =>
+        choiceIndex === index ? normalizedChoice : choice,
+      ),
+    );
+    setCompletedChoices((current) =>
+      current.map((isCompleted, choiceIndex) =>
+        choiceIndex === index ? true : isCompleted,
+      ),
+    );
+    setError(null);
+    return true;
+  };
+
+  const editChoice = (index: number) => {
+    setCompletedChoices((current) =>
+      current.map((isCompleted, choiceIndex) =>
+        choiceIndex === index ? false : isCompleted,
+      ),
+    );
+    setCorrectChoiceIndex((current) => (current === index ? null : current));
+    setError(null);
+    requestAnimationFrame(() => {
+      document.getElementById(`${choiceInputBaseId}-${index}`)?.focus();
+    });
+  };
+
+  const selectCorrectChoice = (index: number) => {
+    if (!completedChoices[index]) return;
+    setCorrectChoiceIndex(index);
+    setError(null);
+  };
+
+  const handleChoiceKeyDown = (
+    event: KeyboardEvent<HTMLInputElement>,
+    index: number,
+  ) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const choiceCompleted = completedChoices[index] || completeChoice(index);
+      if (!choiceCompleted) return;
+      requestAnimationFrame(() => {
+        document.getElementById(`${choiceInputBaseId}-${index + 1}`)?.focus();
+      });
+      return;
+    }
+    if (event.key === " " && completedChoices[index]) {
+      event.preventDefault();
+      selectCorrectChoice(index);
+    }
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -132,8 +206,15 @@ export function ProblemFormModal({
         setError("객관식 선택지는 서로 다르게 입력해 주세요.");
         return;
       }
-      if (correctChoiceIndex === null) {
-        setError("자동 채점을 위해 객관식 정답을 선택해 주세요.");
+      if (completedChoices.some((isCompleted) => !isCompleted)) {
+        setError("모든 객관식 선택지를 완료해 주세요.");
+        return;
+      }
+      if (
+        correctChoiceIndex === null ||
+        !completedChoices[correctChoiceIndex]
+      ) {
+        setError("완료한 객관식 선택지에서 정답을 선택해 주세요.");
         return;
       }
       normalizedAnswer = normalizedChoices[correctChoiceIndex] ?? null;
@@ -166,6 +247,7 @@ export function ProblemFormModal({
         setShortAnswer("");
         setEssayAnswer("");
         setChoices(createEmptyChoices());
+        setCompletedChoices(createEmptyChoices().map(() => false));
         setCorrectChoiceIndex(null);
         setTrueFalseAnswer("");
         setFillBlankAnswer("");
@@ -291,9 +373,10 @@ export function ProblemFormModal({
               {choices.map((choice, index) => {
                 const choiceInputId = `${choiceInputBaseId}-${index}`;
                 const isCorrectAnswer = correctChoiceIndex === index;
+                const isCompleted = completedChoices[index] ?? false;
                 return (
                   <div
-                    className={`choice-editor-row ${isCorrectAnswer ? "choice-editor-row--correct" : ""}`}
+                    className={`choice-editor-row ${isCompleted ? "choice-editor-row--completed" : ""} ${isCorrectAnswer ? "choice-editor-row--correct" : ""}`}
                     key={index}
                   >
                     <label className="choice-input" htmlFor={choiceInputId}>
@@ -305,23 +388,39 @@ export function ProblemFormModal({
                         id={choiceInputId}
                         value={choice}
                         onChange={(event) => updateChoice(index, event.target.value)}
-                        onFocus={() => setCorrectChoiceIndex(index)}
+                        onClick={() => selectCorrectChoice(index)}
+                        onKeyDown={(event) => handleChoiceKeyDown(event, index)}
                         placeholder={`선택지 ${index + 1} 내용을 입력해 주세요.`}
                         disabled={saving}
+                        readOnly={isCompleted}
                         required
-                        aria-label={`선택지 ${index + 1} 내용${isCorrectAnswer ? ", 현재 정답" : ", 포커스하면 정답으로 지정"}`}
+                        aria-label={`선택지 ${index + 1} 내용${isCorrectAnswer ? ", 현재 정답" : isCompleted ? ", 완료됨, 클릭하면 정답으로 지정" : ", 입력 후 엔터를 누르면 완료"}`}
                       />
                     </label>
-                    <button
-                      className="choice-remove"
-                      type="button"
-                      onClick={() => removeChoice(index)}
-                      disabled={choices.length <= 2 || saving}
-                      aria-label={`선택지 ${index + 1} 삭제`}
-                      title={`선택지 ${index + 1} 삭제`}
-                    >
-                      <span aria-hidden="true">×</span>
-                    </button>
+                    <div className="choice-row-actions">
+                      <button
+                        className={`choice-lock ${isCompleted ? "choice-lock--edit" : "choice-lock--complete"}`}
+                        type="button"
+                        onClick={() =>
+                          isCompleted ? editChoice(index) : completeChoice(index)
+                        }
+                        disabled={saving}
+                        aria-label={`선택지 ${index + 1} ${isCompleted ? "수정" : "완료"}`}
+                        title={isCompleted ? "수정" : "완료"}
+                      >
+                        {isCompleted ? "수정" : <span aria-hidden="true">✓</span>}
+                      </button>
+                      <button
+                        className="choice-remove"
+                        type="button"
+                        onClick={() => removeChoice(index)}
+                        disabled={choices.length <= 2 || saving}
+                        aria-label={`선택지 ${index + 1} 삭제`}
+                        title={`선택지 ${index + 1} 삭제`}
+                      >
+                        <span aria-hidden="true">×</span>
+                      </button>
+                    </div>
                   </div>
                 );
               })}

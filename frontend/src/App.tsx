@@ -106,6 +106,19 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const handleButtonPress = (event: PointerEvent) => {
+      if (navigator.maxTouchPoints === 0 || typeof navigator.vibrate !== "function") return;
+      const target = event.target instanceof Element
+        ? event.target.closest<HTMLButtonElement>("button:not(:disabled)")
+        : null;
+      if (target) navigator.vibrate(8);
+    };
+
+    document.addEventListener("pointerdown", handleButtonPress, { passive: true });
+    return () => document.removeEventListener("pointerdown", handleButtonPress);
+  }, []);
+
+  useEffect(() => {
     if (selectedCardId === null) return;
 
     const requestId = ++cardContentRequestId.current;
