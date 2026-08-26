@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   cardApi,
+  dashboardApi,
   getErrorMessage,
   noteApi,
   problemApi,
+  profileApi,
   topicApi,
   workbookApi,
   wrongAnswerApi,
@@ -17,6 +19,7 @@ import { NoteFormModal } from "./components/NoteFormModal";
 import { ProblemFormModal } from "./components/ProblemFormModal";
 import { ProblemOptions } from "./components/ProblemOptions";
 import { ProblemPrompt } from "./components/ProblemPrompt";
+import { ProfileFormModal } from "./components/ProfileFormModal";
 import { RandomStudyModal } from "./components/RandomStudyModal";
 import { TopicManagementModal } from "./components/TopicManagementModal";
 import { WorkbookArchive } from "./components/WorkbookArchive";
@@ -25,10 +28,13 @@ import { problemTypeLabels } from "./problemTypes";
 import type {
   Card,
   CardInput,
+  Dashboard,
   Note,
   NoteInput,
   Problem,
   ProblemInput,
+  Profile,
+  ProfileInput,
   Topic,
   Workbook,
   WorkbookStudyRequest,
@@ -44,6 +50,11 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
 });
 
 function App() {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
   const [cards, setCards] = useState<Card[]>([]);
   const [cardsLoading, setCardsLoading] = useState(true);
   const [appError, setAppError] = useState<string | null>(null);
@@ -98,6 +109,17 @@ function App() {
     }
   }, []);
 
+  const loadDashboard = useCallback(async () => {
+    setDashboardLoading(true);
+    try {
+      setDashboard(await dashboardApi.get());
+    } catch (error) {
+      setAppError(getErrorMessage(error));
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, []);
+
   const loadCardContent = useCallback(async (cardId: number) => {
     const requestId = ++cardContentRequestId.current;
     setCardContentLoaded(false);
@@ -145,24 +167,47 @@ function App() {
   useEffect(() => {
     let ignore = false;
 
-    cardApi
-      .list()
-      .then((result) => {
+    profileApi
+      .get()
+      .then(async (loadedProfile) => {
         if (ignore) return;
-        setCards(result);
+        setProfile(loadedProfile);
+        if (!loadedProfile.is_configured) {
+          setCardsLoading(false);
+          setDashboardLoading(false);
+          return;
+        }
+        const [loadedCards, loadedDashboard] = await Promise.all([
+          cardApi.list(),
+          dashboardApi.get(),
+        ]);
+        if (ignore) return;
+        setCards(loadedCards);
+        setDashboard(loadedDashboard);
       })
       .catch((error: unknown) => {
         if (ignore) return;
         setAppError(getErrorMessage(error));
       })
       .finally(() => {
-        if (!ignore) setCardsLoading(false);
+        if (!ignore) {
+          setProfileLoading(false);
+          setCardsLoading(false);
+          setDashboardLoading(false);
+        }
       });
 
     return () => {
       ignore = true;
     };
   }, []);
+
+  const handleProfileSubmit = async (input: ProfileInput) => {
+    const updated = await profileApi.update(input);
+    setProfile(updated);
+    setProfileEditorOpen(false);
+    await Promise.all([loadCards(), loadDashboard()]);
+  };
 
   useEffect(() => {
     const handleButtonPress = (event: PointerEvent) => {
@@ -186,6 +231,7 @@ function App() {
       setCards((current) => [created, ...current]);
     }
     setCardEditor(undefined);
+    void loadDashboard();
   };
 
   const handleProblemSubmit = async (input: ProblemInput) => {
@@ -381,6 +427,7 @@ function App() {
       setCardContentLoaded(false);
     }
     setCardToDelete(null);
+    void loadDashboard();
   };
 
   const handleDeleteProblem = async () => {
@@ -463,6 +510,7 @@ function App() {
     setNoteEditor(undefined);
     setNoteViewer(null);
     setSourceNoteForProblem(null);
+    void loadDashboard();
   };
 
   const openProblemCreator = () => {
@@ -500,6 +548,17 @@ function App() {
           <span className="brand-mark" aria-hidden="true">PB</span>
           <strong>나의 문제 은행</strong>
         </button>
+        {profile?.is_configured && (
+          <button
+            className="profile-button"
+            type="button"
+            onClick={() => setProfileEditorOpen(true)}
+            aria-label="프로필 설정 열기"
+          >
+            <span aria-hidden="true">{profile.display_name.slice(0, 1)}</span>
+            <strong>{profile.display_name}</strong>
+          </button>
+        )}
       </header>
 
       <main>
@@ -508,11 +567,15 @@ function App() {
             <span>{appError}</span>
             <button
               type="button"
-              onClick={() =>
-                selectedCardId === null
-                  ? void loadCards()
-                  : void loadCardContent(selectedCardId)
-              }
+              onClick={() => {
+                if (selectedCardId !== null) {
+                  void loadCardContent(selectedCardId);
+                } else if (profile === null) {
+                  window.location.reload();
+                } else {
+                  void Promise.all([loadCards(), loadDashboard()]);
+                }
+              }}
             >
               다시 시도
             </button>
@@ -733,17 +796,108 @@ function App() {
           </section>
         ) : (
           <section className="library-view">
-            <div className="library-hero">
-              <div>
-                <p className="eyebrow">Personal study archive</p>
-                <h1>배운 것을<br />내 문제로 남기세요.</h1>
+            {profileLoading || dashboardLoading ? (
+              <div className="dashboard-skeleton" aria-label="대시보드 불러오는 중">
+                <div />
+                <div />
+                <div />
               </div>
-              <div className="hero-note">
-                <button className="button button--primary" type="button" onClick={() => setCardEditor(null)}>
-                  카드 만들기
-                </button>
-              </div>
-            </div>
+            ) : profile?.is_configured && dashboard ? (
+              <>
+                <div className="dashboard-hero">
+                  <div className="dashboard-welcome">
+                    <p className="eyebrow">My study dashboard</p>
+                    <h1>{profile.display_name}님,<br />오늘도 한 걸음 쌓아볼까요?</h1>
+                    <p>저장한 문제와 학습 기록을 한눈에 확인할 수 있어요.</p>
+                    <button
+                      className="button button--primary"
+                      type="button"
+                      onClick={() => setCardEditor(null)}
+                    >
+                      새 카드 만들기
+                    </button>
+                  </div>
+                  <div className="daily-goal-card">
+                    <span>오늘의 학습</span>
+                    <strong>
+                      {dashboard.today_studied_count}
+                      <small> / {profile.daily_goal}문제</small>
+                    </strong>
+                    <div
+                      className="goal-progress"
+                      role="progressbar"
+                      aria-label="오늘의 학습 목표 달성률"
+                      aria-valuemin={0}
+                      aria-valuemax={profile.daily_goal}
+                      aria-valuenow={Math.min(dashboard.today_studied_count, profile.daily_goal)}
+                    >
+                      <span
+                        style={{
+                          width: `${Math.min(
+                            dashboard.today_studied_count / profile.daily_goal * 100,
+                            100,
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <p>
+                      {dashboard.today_studied_count >= profile.daily_goal
+                        ? "오늘 목표를 달성했어요. 멋진 흐름이에요!"
+                        : `${profile.daily_goal - dashboard.today_studied_count}문제 더 풀면 오늘 목표를 달성해요.`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="dashboard-stat-grid" aria-label="전체 학습 현황">
+                  <article>
+                    <span>전체 정답률</span>
+                    <strong>{dashboard.accuracy_rate}%</strong>
+                    <small>정답 {dashboard.correct_count} · 오답 {dashboard.incorrect_count}</small>
+                  </article>
+                  <article>
+                    <span>복습할 오답</span>
+                    <strong>{dashboard.unresolved_wrong_answer_count}</strong>
+                    <small>해결되지 않은 문제</small>
+                  </article>
+                  <article>
+                    <span>완료한 학습</span>
+                    <strong>{dashboard.completed_session_count}</strong>
+                    <small>채점을 마친 회차</small>
+                  </article>
+                  <article>
+                    <span>학습 자료</span>
+                    <strong>{dashboard.problem_count}</strong>
+                    <small>카드 {dashboard.card_count} · 노트 {dashboard.note_count}</small>
+                  </article>
+                </div>
+
+                <section className="weak-topic-panel">
+                  <div>
+                    <p className="eyebrow">Focus next</p>
+                    <h2>조금 더 살펴볼 주제</h2>
+                  </div>
+                  {dashboard.weak_topics.length > 0 ? (
+                    <div className="weak-topic-list">
+                      {dashboard.weak_topics.map((topic) => (
+                        <button
+                          key={topic.topic_id}
+                          type="button"
+                          onClick={() => openCard(topic.card_id)}
+                        >
+                          <span>{topic.card_title} · {topic.topic_name}</span>
+                          <strong>{topic.accuracy_rate}%</strong>
+                          <small>{topic.graded_count}회 채점 · 문제 {topic.problem_count}개</small>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="weak-topic-empty">
+                      문제를 풀고 채점하면 정답률이 낮은 주제를 여기서 알려드려요.
+                    </p>
+                  )}
+                </section>
+              </>
+            ) : null}
 
             <div className="section-heading library-heading">
               <div>
@@ -794,6 +948,14 @@ function App() {
         <span>Problem Bank</span>
       </footer>
 
+      {profile && (!profile.is_configured || profileEditorOpen) && (
+        <ProfileFormModal
+          profile={profile}
+          initialSetup={!profile.is_configured}
+          onClose={() => setProfileEditorOpen(false)}
+          onSubmit={handleProfileSubmit}
+        />
+      )}
       {cardEditor !== undefined && (
         <CardFormModal card={cardEditor} onClose={() => setCardEditor(undefined)} onSubmit={handleCardSubmit} />
       )}

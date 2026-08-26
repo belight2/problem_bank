@@ -1,10 +1,13 @@
 import type {
   Card,
   CardInput,
+  Dashboard,
   Note,
   NoteInput,
   Problem,
   ProblemInput,
+  Profile,
+  ProfileInput,
   RandomProblemSet,
   RandomStudyPreset,
   RandomStudyPresetInput,
@@ -75,6 +78,16 @@ export const cardApi = {
   update: (cardId: number, input: CardInput) =>
     request<Card>(`/cards/${cardId}`, { method: "PATCH", body: JSON.stringify(input) }),
   remove: (cardId: number) => request<void>(`/cards/${cardId}`, { method: "DELETE" }),
+};
+
+export const profileApi = {
+  get: () => request<Profile>("/profile"),
+  update: (input: ProfileInput) =>
+    request<Profile>("/profile", { method: "PUT", body: JSON.stringify(input) }),
+};
+
+export const dashboardApi = {
+  get: () => request<Dashboard>("/dashboard"),
 };
 
 export const topicApi = {

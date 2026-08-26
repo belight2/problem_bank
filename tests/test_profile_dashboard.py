@@ -1,0 +1,81 @@
+from fastapi.testclient import TestClient
+
+
+def test_profile_is_created_once_and_can_be_configured(client: TestClient) -> None:
+    initial = client.get("/profile")
+    assert initial.status_code == 200
+    assert initial.json()["id"] == 1
+    assert initial.json()["is_configured"] is False
+
+    configured = client.put(
+        "/profile",
+        json={
+            "display_name": "  준혁  ",
+            "timezone": "Asia/Seoul",
+            "daily_goal": 15,
+        },
+    )
+    assert configured.status_code == 200
+    assert configured.json()["display_name"] == "준혁"
+    assert configured.json()["daily_goal"] == 15
+    assert configured.json()["is_configured"] is True
+
+    assert (
+        client.put(
+            "/profile",
+            json={"display_name": "준혁", "timezone": "Unknown/Zone", "daily_goal": 15},
+        ).status_code
+        == 422
+    )
+
+
+def test_dashboard_aggregates_the_local_profile_study_data(client: TestClient) -> None:
+    client.put(
+        "/profile",
+        json={"display_name": "준혁", "timezone": "Asia/Seoul", "daily_goal": 10},
+    )
+    card = client.post("/cards", json={"title": "SQLD"}).json()
+    assert card["profile_id"] == 1
+    card_id = card["id"]
+
+    topic_id = client.post(
+        f"/cards/{card_id}/topics",
+        json={"name": "데이터 모델링"},
+    ).json()["id"]
+    problem_id = client.post(
+        f"/cards/{card_id}/problems",
+        json={
+            "topic_id": topic_id,
+            "question": "식별자란?",
+            "answer": "엔터티를 구분하는 속성",
+        },
+    ).json()["id"]
+
+    problem_set = client.post(f"/cards/{card_id}/problems/random?limit=1").json()
+    recorded = client.post(
+        f"/cards/{card_id}/problems/random/{problem_set['session_id']}/results",
+        json={
+            "results": [
+                {
+                    "problem_id": problem_id,
+                    "result": "incorrect",
+                    "submitted_answer": "모름",
+                }
+            ]
+        },
+    )
+    assert recorded.status_code == 200
+
+    dashboard = client.get("/dashboard")
+    assert dashboard.status_code == 200
+    payload = dashboard.json()
+    assert payload["profile"]["display_name"] == "준혁"
+    assert payload["card_count"] == 1
+    assert payload["topic_count"] == 1
+    assert payload["problem_count"] == 1
+    assert payload["completed_session_count"] == 1
+    assert payload["incorrect_count"] == 1
+    assert payload["unresolved_wrong_answer_count"] == 1
+    assert payload["today_studied_count"] == 1
+    assert payload["weak_topics"][0]["topic_name"] == "데이터 모델링"
+    assert payload["weak_topics"][0]["accuracy_rate"] == 0

@@ -1,9 +1,52 @@
 export interface Card {
   id: number;
+  profile_id: number;
   title: string;
   description: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface Profile {
+  id: number;
+  display_name: string;
+  timezone: string;
+  daily_goal: number;
+  is_configured: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfileInput {
+  display_name: string;
+  timezone: string;
+  daily_goal: number;
+}
+
+export interface DashboardWeakTopic {
+  card_id: number;
+  card_title: string;
+  topic_id: number;
+  topic_name: string;
+  problem_count: number;
+  graded_count: number;
+  accuracy_rate: number;
+}
+
+export interface Dashboard {
+  profile: Profile;
+  card_count: number;
+  topic_count: number;
+  problem_count: number;
+  note_count: number;
+  workbook_count: number;
+  completed_session_count: number;
+  correct_count: number;
+  incorrect_count: number;
+  accuracy_rate: number;
+  unresolved_wrong_answer_count: number;
+  today_studied_count: number;
+  weak_topics: DashboardWeakTopic[];
 }
 
 export interface CardInput {
