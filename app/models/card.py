@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.note import Note
     from app.models.problem import Problem
     from app.models.random_study_preset import RandomStudyPreset
     from app.models.random_study_setting import RandomStudySetting
@@ -30,6 +31,7 @@ class Card(Base):
     topics: Mapped[list["Topic"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
     )
+    notes: Mapped[list["Note"]] = relationship(back_populates="card", cascade="all, delete-orphan")
     random_study_setting: Mapped["RandomStudySetting | None"] = relationship(
         back_populates="card",
         cascade="all, delete-orphan",

@@ -19,6 +19,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.card import Card
+    from app.models.note import Note
     from app.models.topic import Topic
 
 
@@ -62,6 +63,10 @@ class Problem(Base):
     )
     choices: Mapped[list[str] | None] = mapped_column(JSON)
     answer: Mapped[str | None] = mapped_column(Text)
+    source_note_id: Mapped[int | None] = mapped_column(
+        ForeignKey("notes.id", ondelete="SET NULL"),
+        index=True,
+    )
     presented_count: Mapped[int] = mapped_column(default=0, server_default="0")
     correct_count: Mapped[int] = mapped_column(default=0, server_default="0")
     incorrect_count: Mapped[int] = mapped_column(default=0, server_default="0")
@@ -75,7 +80,12 @@ class Problem(Base):
         back_populates="problems",
         foreign_keys=[topic_id],
     )
+    source_note: Mapped["Note | None"] = relationship(back_populates="derived_problems")
 
     @property
     def topic_name(self) -> str:
         return self.topic.name
+
+    @property
+    def source_note_title(self) -> str | None:
+        return self.source_note.title if self.source_note is not None else None

@@ -8,6 +8,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.card import Card
+    from app.models.note import Note
     from app.models.problem import Problem
 
 
@@ -30,5 +31,9 @@ class Topic(Base):
     problems: Mapped[list["Problem"]] = relationship(
         back_populates="topic",
         foreign_keys="Problem.topic_id",
+        passive_deletes=True,
+    )
+    notes: Mapped[list["Note"]] = relationship(
+        back_populates="topic",
         passive_deletes=True,
     )

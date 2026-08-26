@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.dependencies import DatabaseSession
 from app.models.card import Card
+from app.models.note import Note
 from app.models.problem import Problem
 from app.models.study_session import StudySession
 from app.models.topic import Topic
@@ -34,7 +35,7 @@ def ensure_card_exists(card_id: int, db: Session) -> None:
 def get_problem_or_404(card_id: int, problem_id: int, db: Session) -> Problem:
     statement = (
         select(Problem)
-        .options(selectinload(Problem.topic))
+        .options(selectinload(Problem.topic), selectinload(Problem.source_note))
         .where(
             Problem.id == problem_id,
             Problem.card_id == card_id,
@@ -52,6 +53,19 @@ def get_topic_for_card_or_404(card_id: int, topic_id: int, db: Session) -> Topic
     if topic is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found")
     return topic
+
+
+def get_optional_source_note(
+    card_id: int,
+    source_note_id: int | None,
+    db: Session,
+) -> Note | None:
+    if source_note_id is None:
+        return None
+    note = db.scalar(select(Note).where(Note.id == source_note_id, Note.card_id == card_id))
+    if note is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+    return note
 
 
 def calculate_problem_weight(problem: Problem) -> float:
@@ -76,7 +90,13 @@ def choose_weighted_problems(problems: list[Problem], limit: int) -> list[Proble
 def create_problem(card_id: int, payload: ProblemCreate, db: DatabaseSession) -> Problem:
     ensure_card_exists(card_id, db)
     topic = get_topic_for_card_or_404(card_id, payload.topic_id, db)
-    problem = Problem(card_id=card_id, topic=topic, **payload.model_dump())
+    source_note = get_optional_source_note(card_id, payload.source_note_id, db)
+    problem = Problem(
+        card_id=card_id,
+        topic=topic,
+        source_note=source_note,
+        **payload.model_dump(exclude={"source_note_id"}),
+    )
     db.add(problem)
     db.commit()
     db.refresh(problem)
@@ -93,7 +113,9 @@ def list_problems(
 ) -> list[Problem]:
     ensure_card_exists(card_id, db)
     statement = (
-        select(Problem).options(selectinload(Problem.topic)).where(Problem.card_id == card_id)
+        select(Problem)
+        .options(selectinload(Problem.topic), selectinload(Problem.source_note))
+        .where(Problem.card_id == card_id)
     )
     if topic_id is not None:
         statement = statement.where(Problem.topic_id == topic_id)
@@ -115,7 +137,9 @@ def get_random_problems(
 ) -> dict[str, str | None | list[Problem]]:
     ensure_card_exists(card_id, db)
     statement = (
-        select(Problem).options(selectinload(Problem.topic)).where(Problem.card_id == card_id)
+        select(Problem)
+        .options(selectinload(Problem.topic), selectinload(Problem.source_note))
+        .where(Problem.card_id == card_id)
     )
     if topic_id is not None:
         statement = statement.where(Problem.topic_id == topic_id)
@@ -179,7 +203,9 @@ def record_study_results(
 
     problems = list(
         db.scalars(
-            select(Problem).where(
+            select(Problem)
+            .options(selectinload(Problem.topic), selectinload(Problem.source_note))
+            .where(
                 Problem.card_id == card_id,
                 Problem.id.in_(expected_problem_ids),
             )
@@ -228,6 +254,7 @@ def update_problem(
                 "problem_type": problem.problem_type,
                 "choices": problem.choices,
                 "answer": problem.answer,
+                "source_note_id": problem.source_note_id,
             }
             | changes
         )
@@ -239,9 +266,11 @@ def update_problem(
         raise RequestValidationError(validation_errors) from error
 
     topic = get_topic_for_card_or_404(card_id, final_state.topic_id, db)
-    for field, value in final_state.model_dump().items():
+    source_note = get_optional_source_note(card_id, final_state.source_note_id, db)
+    for field, value in final_state.model_dump(exclude={"source_note_id"}).items():
         setattr(problem, field, value)
     problem.topic = topic
+    problem.source_note = source_note
 
     db.commit()
     db.refresh(problem)

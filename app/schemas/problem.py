@@ -9,6 +9,7 @@ Question = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)
 Choice = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Choices = Annotated[list[Choice], Field(min_length=2, max_length=10)]
 TopicId = Annotated[int, Field(gt=0)]
+NoteId = Annotated[int, Field(gt=0)]
 FILL_BLANK_MARKER = "[빈칸]"
 
 
@@ -49,6 +50,7 @@ class ProblemCreate(BaseModel):
     problem_type: ProblemType = ProblemType.SHORT_ANSWER
     choices: Choices | None = None
     answer: str | None = None
+    source_note_id: NoteId | None = None
 
     @model_validator(mode="after")
     def validate_configuration(self) -> Self:
@@ -71,6 +73,7 @@ class ProblemUpdate(BaseModel):
     problem_type: ProblemType | None = None
     choices: Choices | None = None
     answer: str | None = None
+    source_note_id: NoteId | None = None
 
     @model_validator(mode="after")
     def validate_changes(self) -> Self:
@@ -96,6 +99,8 @@ class ProblemRead(BaseModel):
     problem_type: ProblemType
     choices: list[str] | None
     answer: str | None
+    source_note_id: int | None
+    source_note_title: str | None
     presented_count: int
     correct_count: int
     incorrect_count: int
