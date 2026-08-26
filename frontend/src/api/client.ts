@@ -1,6 +1,8 @@
 import type {
   Card,
   CardInput,
+  Note,
+  NoteInput,
   Problem,
   ProblemInput,
   RandomProblemSet,
@@ -84,6 +86,24 @@ export const topicApi = {
     }),
   remove: (cardId: number, topicId: number) =>
     request<void>(`/cards/${cardId}/topics/${topicId}`, { method: "DELETE" }),
+};
+
+export const noteApi = {
+  list: (cardId: number) => request<Note[]>(`/cards/${cardId}/notes?limit=100`),
+  get: (cardId: number, noteId: number, signal?: AbortSignal) =>
+    request<Note>(`/cards/${cardId}/notes/${noteId}`, { signal }),
+  create: (cardId: number, input: NoteInput) =>
+    request<Note>(`/cards/${cardId}/notes`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (cardId: number, noteId: number, input: NoteInput) =>
+    request<Note>(`/cards/${cardId}/notes/${noteId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  remove: (cardId: number, noteId: number) =>
+    request<void>(`/cards/${cardId}/notes/${noteId}`, { method: "DELETE" }),
 };
 
 export const problemApi = {

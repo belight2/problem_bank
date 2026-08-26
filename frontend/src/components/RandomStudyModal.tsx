@@ -9,6 +9,7 @@ import {
 
 import {
   getErrorMessage,
+  noteApi,
   problemApi,
   randomStudyPresetApi,
   randomStudySettingsApi,
@@ -16,6 +17,7 @@ import {
 import { problemTypeLabels } from "../problemTypes";
 import type {
   Card,
+  Note,
   Problem,
   ProblemType,
   RandomStudyPreset,
@@ -23,6 +25,7 @@ import type {
   Topic,
 } from "../types";
 import { Modal } from "./Modal";
+import { MarkdownContent } from "./MarkdownContent";
 import { ProblemPrompt } from "./ProblemPrompt";
 
 interface RandomStudyModalProps {
@@ -119,6 +122,10 @@ export function RandomStudyModal({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [results, setResults] = useState<Record<number, GradeResult>>({});
+  const [referenceNotes, setReferenceNotes] = useState<Record<number, Note>>({});
+  const [openReferenceProblemId, setOpenReferenceProblemId] = useState<number | null>(null);
+  const [loadingReferenceNoteId, setLoadingReferenceNoteId] = useState<number | null>(null);
+  const [referenceNoteErrors, setReferenceNoteErrors] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState("설정을 불러오는 중…");
 
@@ -338,6 +345,10 @@ export function RandomStudyModal({
       setCurrentIndex(0);
       setAnswers({});
       setResults({});
+      setReferenceNotes({});
+      setOpenReferenceProblemId(null);
+      setLoadingReferenceNoteId(null);
+      setReferenceNoteErrors({});
       setError(null);
       setStage("study");
     } catch (requestError) {
@@ -550,6 +561,35 @@ export function RandomStudyModal({
 
   const recordManualResult = (problemId: number, result: GradeResult) => {
     setResults((current) => ({ ...current, [problemId]: result }));
+  };
+
+  const toggleReferenceNote = async (problem: Problem) => {
+    if (problem.source_note_id === null) return;
+    if (openReferenceProblemId === problem.id) {
+      setOpenReferenceProblemId(null);
+      return;
+    }
+
+    setOpenReferenceProblemId(problem.id);
+    if (referenceNotes[problem.source_note_id]) return;
+
+    setLoadingReferenceNoteId(problem.source_note_id);
+    setReferenceNoteErrors((current) => {
+      const next = { ...current };
+      delete next[problem.id];
+      return next;
+    });
+    try {
+      const note = await noteApi.get(card.id, problem.source_note_id);
+      setReferenceNotes((current) => ({ ...current, [note.id]: note }));
+    } catch (noteError) {
+      setReferenceNoteErrors((current) => ({
+        ...current,
+        [problem.id]: getErrorMessage(noteError),
+      }));
+    } finally {
+      setLoadingReferenceNoteId(null);
+    }
   };
 
   const handleCompleteGrading = async () => {
@@ -1054,6 +1094,43 @@ export function RandomStudyModal({
                         정답
                       </button>
                     </div>
+                  )}
+
+                  {problem.source_note_id !== null && (
+                    <section className="grading-reference-note">
+                      <button
+                        className="reference-note-toggle"
+                        type="button"
+                        aria-expanded={openReferenceProblemId === problem.id}
+                        onClick={() => void toggleReferenceNote(problem)}
+                      >
+                        <span>
+                          <small>참고 노트</small>
+                          <strong>{problem.source_note_title ?? "연결된 노트"}</strong>
+                        </span>
+                        <span aria-hidden="true">
+                          {openReferenceProblemId === problem.id ? "−" : "+"}
+                        </span>
+                      </button>
+
+                      {openReferenceProblemId === problem.id && (
+                        <div className="reference-note-content">
+                          {loadingReferenceNoteId === problem.source_note_id ? (
+                            <div className="reference-note-loading" role="status">
+                              노트를 불러오는 중…
+                            </div>
+                          ) : referenceNoteErrors[problem.id] ? (
+                            <p className="form-error" role="alert">
+                              {referenceNoteErrors[problem.id]}
+                            </p>
+                          ) : referenceNotes[problem.source_note_id] ? (
+                            <MarkdownContent
+                              content={referenceNotes[problem.source_note_id].content_markdown}
+                            />
+                          ) : null}
+                        </div>
+                      )}
+                    </section>
                   )}
                 </article>
               );

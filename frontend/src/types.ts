@@ -23,6 +23,23 @@ export interface TopicInput {
   name: string;
 }
 
+export interface Note {
+  id: number;
+  card_id: number;
+  topic_id: number | null;
+  topic_name: string | null;
+  title: string;
+  content_markdown: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NoteInput {
+  topic_id: number | null;
+  title: string;
+  content_markdown: string;
+}
+
 export type ProblemType =
   | "short_answer"
   | "essay"
@@ -39,6 +56,8 @@ export interface Problem {
   problem_type: ProblemType;
   choices: string[] | null;
   answer: string | null;
+  source_note_id: number | null;
+  source_note_title: string | null;
   presented_count: number;
   correct_count: number;
   incorrect_count: number;
@@ -52,6 +71,7 @@ export interface ProblemInput {
   problem_type: ProblemType;
   choices: string[] | null;
   answer: string | null;
+  source_note_id: number | null;
 }
 
 export interface RandomProblemSet {

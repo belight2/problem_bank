@@ -8,12 +8,14 @@ import {
 
 import { getErrorMessage } from "../api/client";
 import { FILL_BLANK_MARKER, problemTypeOptions } from "../problemTypes";
-import type { Problem, ProblemInput, ProblemType, Topic } from "../types";
+import type { Note, Problem, ProblemInput, ProblemType, Topic } from "../types";
+import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
 
 interface ProblemFormModalProps {
   problem: Problem | null;
   topics: Topic[];
+  sourceNote: Note | null;
   onClose: () => void;
   onSubmit: (input: ProblemInput) => Promise<void>;
 }
@@ -37,6 +39,7 @@ function splitFillBlankQuestion(question: string): [string, string] {
 export function ProblemFormModal({
   problem,
   topics,
+  sourceNote,
   onClose,
   onSubmit,
 }: ProblemFormModalProps) {
@@ -65,7 +68,10 @@ export function ProblemFormModal({
       : ["", ""];
 
   const [selectedTopicId, setSelectedTopicId] = useState<number | "">(
-    problem?.topic_id ?? "",
+    problem?.topic_id ?? sourceNote?.topic_id ?? "",
+  );
+  const [sourceNoteConnected, setSourceNoteConnected] = useState(
+    Boolean(problem?.source_note_id || sourceNote),
   );
   const [problemType, setProblemType] = useState<ProblemType>(
     problem?.problem_type ?? "short_answer",
@@ -359,6 +365,9 @@ export function ProblemFormModal({
         problem_type: problemType,
         choices: normalizedChoices,
         answer: normalizedAnswer,
+        source_note_id: sourceNoteConnected
+          ? (sourceNote?.id ?? problem?.source_note_id ?? null)
+          : null,
       });
       if (!problem) {
         setQuestion("");
@@ -399,6 +408,31 @@ export function ProblemFormModal({
       closeDisabled={saving}
     >
       <form className="form-stack" onSubmit={handleSubmit}>
+        {sourceNote && (
+          <section className={`problem-source-note${sourceNoteConnected ? "" : " is-disconnected"}`}>
+            <div className="problem-source-note-heading">
+              <div>
+                <span>참고 노트</span>
+                <strong>{sourceNote.title}</strong>
+              </div>
+              <button
+                className="button button--ghost button--compact"
+                type="button"
+                onClick={() => setSourceNoteConnected((current) => !current)}
+                disabled={saving}
+              >
+                {sourceNoteConnected ? "연결 해제" : "다시 연결"}
+              </button>
+            </div>
+            {sourceNoteConnected && (
+              <MarkdownContent
+                content={sourceNote.content_markdown}
+                className="problem-source-note-content"
+              />
+            )}
+          </section>
+        )}
+
         <label className="field" htmlFor={topicId}>
           <span>주제</span>
           <select
