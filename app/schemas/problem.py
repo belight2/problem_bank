@@ -116,6 +116,7 @@ class RandomProblemSetRead(BaseModel):
 class StudyResultWrite(BaseModel):
     problem_id: int = Field(gt=0)
     result: Literal["correct", "incorrect", "ungraded"]
+    submitted_answer: str | None = Field(default=None, max_length=10000)
 
 
 class StudyResultsWrite(BaseModel):

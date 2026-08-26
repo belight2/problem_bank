@@ -8,6 +8,7 @@ from app.api.routes.problems import router as problems_router
 from app.api.routes.random_study_presets import router as random_study_presets_router
 from app.api.routes.random_study_settings import router as random_study_settings_router
 from app.api.routes.topics import router as topics_router
+from app.api.routes.wrong_answers import router as wrong_answers_router
 from app.core.config import get_settings
 
 app = FastAPI(title=get_settings().app_name)
@@ -17,6 +18,7 @@ app.include_router(topics_router)
 app.include_router(problems_router)
 app.include_router(random_study_presets_router)
 app.include_router(random_study_settings_router)
+app.include_router(wrong_answers_router)
 
 
 @app.get("/")

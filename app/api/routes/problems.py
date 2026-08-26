@@ -15,6 +15,7 @@ from app.models.note import Note
 from app.models.problem import Problem
 from app.models.study_session import StudySession
 from app.models.topic import Topic
+from app.models.wrong_answer import WrongAnswer, WrongAnswerStatus
 from app.schemas.problem import (
     ProblemCreate,
     ProblemRead,
@@ -220,14 +221,39 @@ def record_study_results(
         return {"status": "already_recorded", "problems": problems}
 
     result_by_problem_id = {result.problem_id: result.result for result in payload.results}
+    submitted_answer_by_problem_id = {
+        result.problem_id: result.submitted_answer for result in payload.results
+    }
+    wrong_answers_by_problem_id = {
+        wrong_answer.problem_id: wrong_answer
+        for wrong_answer in db.scalars(
+            select(WrongAnswer)
+            .where(
+                WrongAnswer.card_id == card_id,
+                WrongAnswer.problem_id.in_(expected_problem_ids),
+            )
+            .with_for_update()
+        ).all()
+    }
+    completed_at = datetime.now(UTC)
     for problem in problems:
         result = result_by_problem_id[problem.id]
         if result == "correct":
             problem.correct_count += 1
         elif result == "incorrect":
             problem.incorrect_count += 1
+            wrong_answer = wrong_answers_by_problem_id.get(problem.id)
+            if wrong_answer is None:
+                wrong_answer = WrongAnswer(
+                    card_id=card_id,
+                    problem_id=problem.id,
+                )
+                db.add(wrong_answer)
+            wrong_answer.status = WrongAnswerStatus.NEEDS_REVIEW.value
+            wrong_answer.last_submitted_answer = submitted_answer_by_problem_id[problem.id]
+            wrong_answer.last_incorrect_at = completed_at
 
-    session.completed_at = datetime.now(UTC)
+    session.completed_at = completed_at
     db.commit()
     return {"status": "recorded", "problems": problems}
 

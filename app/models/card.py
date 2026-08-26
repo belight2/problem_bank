@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.random_study_preset import RandomStudyPreset
     from app.models.random_study_setting import RandomStudySetting
     from app.models.topic import Topic
+    from app.models.wrong_answer import WrongAnswer
 
 
 class Card(Base):
@@ -38,6 +39,10 @@ class Card(Base):
         uselist=False,
     )
     random_study_presets: Mapped[list["RandomStudyPreset"]] = relationship(
+        back_populates="card",
+        cascade="all, delete-orphan",
+    )
+    wrong_answers: Mapped[list["WrongAnswer"]] = relationship(
         back_populates="card",
         cascade="all, delete-orphan",
     )

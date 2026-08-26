@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from app.models.card import Card
     from app.models.note import Note
     from app.models.topic import Topic
+    from app.models.wrong_answer import WrongAnswer
 
 
 class ProblemType(StrEnum):
@@ -81,6 +82,11 @@ class Problem(Base):
         foreign_keys=[topic_id],
     )
     source_note: Mapped["Note | None"] = relationship(back_populates="derived_problems")
+    wrong_answer: Mapped["WrongAnswer | None"] = relationship(
+        back_populates="problem",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
     @property
     def topic_name(self) -> str:

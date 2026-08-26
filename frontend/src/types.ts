@@ -82,6 +82,32 @@ export interface RandomProblemSet {
 export interface StudyResultInput {
   problem_id: number;
   result: "correct" | "incorrect" | "ungraded";
+  submitted_answer: string | null;
+}
+
+export type WrongAnswerStatus = "needs_review" | "reviewing" | "resolved";
+
+export interface WrongAnswer {
+  id: number;
+  card_id: number;
+  problem_id: number;
+  status: WrongAnswerStatus;
+  last_submitted_answer: string | null;
+  memo: string | null;
+  last_incorrect_at: string;
+  created_at: string;
+  updated_at: string;
+  problem: Problem;
+}
+
+export interface WrongAnswerInput {
+  status?: WrongAnswerStatus;
+  memo?: string | null;
+}
+
+export interface WrongAnswerStudyRequest {
+  problemId?: number;
+  problemCount: number;
 }
 
 export type RandomStudySelectionMode = "all" | "incorrect_rate" | "incorrect_count";

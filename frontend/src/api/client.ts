@@ -14,6 +14,8 @@ import type {
   StudyResultInput,
   Topic,
   TopicInput,
+  WrongAnswer,
+  WrongAnswerInput,
 } from "../types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
@@ -162,6 +164,29 @@ export const problemApi = {
     }),
   remove: (cardId: number, problemId: number) =>
     request<void>(`/cards/${cardId}/problems/${problemId}`, { method: "DELETE" }),
+};
+
+export const wrongAnswerApi = {
+  list: (cardId: number, signal?: AbortSignal) =>
+    request<WrongAnswer[]>(`/cards/${cardId}/wrong-answers?limit=100`, { signal }),
+  update: (cardId: number, problemId: number, input: WrongAnswerInput) =>
+    request<WrongAnswer>(`/cards/${cardId}/wrong-answers/${problemId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  study: (
+    cardId: number,
+    options: { count: number; problemId?: number; signal?: AbortSignal },
+  ) => {
+    const params = new URLSearchParams({ limit: String(options.count) });
+    if (options.problemId !== undefined) {
+      params.set("problem_id", String(options.problemId));
+    }
+    return request<RandomProblemSet>(
+      `/cards/${cardId}/wrong-answers/study?${params.toString()}`,
+      { method: "POST", signal: options.signal },
+    );
+  },
 };
 
 export const randomStudySettingsApi = {
