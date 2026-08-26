@@ -1,9 +1,21 @@
-import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 
 import { ApiError, getErrorMessage } from "../api/client";
 import type { Note, NoteInput, Topic } from "../types";
-import { MarkdownContent } from "./MarkdownContent";
+import { EditorErrorBoundary } from "./EditorErrorBoundary";
 import { Modal } from "./Modal";
+
+const MarkdownEditor = lazy(() =>
+  import("./MarkdownEditor").then((module) => ({ default: module.MarkdownEditor })),
+);
 
 interface NoteFormModalProps {
   note: Note | null;
@@ -30,14 +42,12 @@ export function NoteFormModal({
   const titleId = useId();
   const topicId = useId();
   const newTopicId = useId();
-  const contentId = useId();
   const newTopicInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(note?.title ?? "");
   const [selectedTopicId, setSelectedTopicId] = useState<number | "">(
     note?.topic_id ?? "",
   );
   const [content, setContent] = useState(note?.content_markdown ?? "");
-  const [mode, setMode] = useState<"write" | "preview">("write");
   const [discardPending, setDiscardPending] = useState(false);
   const [topicCreatorOpen, setTopicCreatorOpen] = useState(false);
   const [newTopicName, setNewTopicName] = useState("");
@@ -203,51 +213,43 @@ export function NoteFormModal({
         )}
 
         <div className="note-editor-heading">
-          <span>Markdown</span>
-          <div className="note-editor-tabs" role="tablist" aria-label="노트 작성 방식">
-            <button
-              className={mode === "write" ? "is-active" : ""}
-              type="button"
-              role="tab"
-              aria-selected={mode === "write"}
-              onClick={() => setMode("write")}
-            >
-              작성
-            </button>
-            <button
-              className={mode === "preview" ? "is-active" : ""}
-              type="button"
-              role="tab"
-              aria-selected={mode === "preview"}
-              onClick={() => setMode("preview")}
-            >
-              미리보기
-            </button>
-          </div>
+          <span>내용</span>
         </div>
 
-        {mode === "write" ? (
-          <label className="field note-content-field" htmlFor={contentId}>
-            <span className="sr-only">노트 내용</span>
-            <textarea
-              id={contentId}
-              value={content}
-              onChange={(event) => {
-                setContent(event.target.value);
+        <EditorErrorBoundary
+          fallback={(
+            <label className="field markdown-editor-fallback">
+              <span className="form-error" role="alert">
+                편집기를 불러오지 못해 기본 입력 모드로 전환했습니다.
+              </span>
+              <textarea
+                value={content}
+                onChange={(event) => {
+                  setContent(event.target.value);
+                  setDiscardPending(false);
+                }}
+                rows={18}
+                required
+              />
+            </label>
+          )}
+        >
+          <Suspense
+            fallback={(
+              <div className="markdown-editor-loading" role="status">
+                편집기 불러오는 중…
+              </div>
+            )}
+          >
+            <MarkdownEditor
+              initialMarkdown={note?.content_markdown ?? ""}
+              onMarkdownChange={(markdown) => {
+                setContent(markdown);
                 setDiscardPending(false);
               }}
-              placeholder="# 제목\n\n공부한 내용을 Markdown으로 정리해 주세요."
-              rows={18}
-              required
             />
-          </label>
-        ) : content.trim() ? (
-          <MarkdownContent content={content} className="note-editor-preview" />
-        ) : (
-          <div className="note-editor-preview note-editor-preview--empty">
-            작성한 내용이 없습니다.
-          </div>
-        )}
+          </Suspense>
+        </EditorErrorBoundary>
 
         {error && <p className="form-error" role="alert">{error}</p>}
 

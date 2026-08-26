@@ -1417,61 +1417,294 @@ footer {
   font-weight: 650;
 }
 
-.note-editor-tabs {
-  display: inline-flex;
-  gap: 0.2rem;
-  padding: 0.2rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-muted);
+.markdown-editor {
+  min-height: 420px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color 100ms ease, box-shadow 100ms ease;
 }
 
-.note-editor-tabs button {
-  min-height: 34px;
-  padding: 0.45rem 0.75rem;
-  border: 0;
-  border-radius: 7px;
+.markdown-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 42px;
+  padding: 0.35rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 58%, var(--surface));
+}
+
+.note-color-button,
+.text-format-button {
+  position: relative;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0 0 4px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-soft);
-  font-size: 0.8125rem;
-  font-weight: 650;
-  transition:
-    transform 100ms ease,
-    background-color 100ms ease,
-    color 100ms ease;
+  font: 700 0.875rem/1 system-ui, sans-serif;
+  cursor: pointer;
+  transition: background-color 80ms ease, border-color 80ms ease, transform 80ms ease;
 }
 
-.note-editor-tabs button:hover {
-  color: var(--primary-strong);
+.note-color-button::after {
+  position: absolute;
+  right: 7px;
+  bottom: 5px;
+  left: 7px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+}
+
+.note-color-button:hover:not(:disabled),
+.text-format-button:hover:not(:disabled) {
+  border-color: var(--border);
+  background: var(--surface);
   transform: translateY(-1px);
 }
 
-.note-editor-tabs button.is-active {
-  background: var(--surface);
-  color: var(--primary-strong);
-  box-shadow: 0 1px 5px rgba(23, 32, 26, 0.08);
+.note-color-button:active:not(:disabled),
+.text-format-button:active:not(:disabled) {
+  transform: translateY(0);
 }
 
-.note-content-field textarea {
+.note-color-button:focus-visible,
+.text-format-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.note-color-button:disabled,
+.text-format-button:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+
+.note-color-button--reset { color: var(--text-faint); }
+.note-color-button--green { color: #16803c; }
+.note-color-button--red { color: #dc2626; }
+.note-color-button--amber { color: #b45309; }
+
+.note-custom-color {
+  width: 32px;
+  height: 32px;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 80ms ease, border-color 80ms ease, transform 80ms ease;
+}
+
+.note-custom-color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.note-custom-color::-webkit-color-swatch,
+.note-custom-color::-moz-color-swatch {
+  border: 0;
+  border-radius: 5px;
+}
+
+.note-custom-color:hover:not(:disabled) {
+  border-color: var(--border);
+  background: var(--surface);
+  transform: translateY(-1px);
+}
+
+.note-custom-color:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.note-custom-color:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+
+.text-format-button--bold { font-weight: 800; }
+.text-format-button--italic { font-style: italic; }
+.text-format-button--strike { text-decoration: line-through; }
+.text-format-button--code {
+  width: 38px;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+
+.markdown-editor-toolbar-divider {
+  align-self: stretch;
+  width: 1px;
+  margin: 0.25rem 0.2rem;
+  background: var(--border);
+}
+
+.markdown-editor-loading {
+  display: grid;
+  min-height: 420px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  color: var(--text-faint);
+  font-size: 0.8125rem;
+  animation: feedback-enter 180ms ease-out both;
+}
+
+.markdown-editor-fallback textarea {
   min-height: 420px;
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.875rem;
-  line-height: 1.75;
-  tab-size: 2;
 }
 
-.note-editor-preview {
-  min-height: 420px;
-  padding: 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+.markdown-editor:focus-within {
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
+}
+
+.markdown-editor .milkdown {
+  min-height: 375px;
+  border-radius: 0 0 var(--radius) var(--radius);
   background: var(--surface);
 }
 
-.note-editor-preview--empty {
-  display: grid;
-  place-items: center;
-  color: var(--text-faint);
+.markdown-editor .ProseMirror {
+  min-height: 375px;
+  padding: 1.4rem 1.6rem;
+  border-radius: inherit;
+  color: var(--text);
+  caret-color: var(--primary-strong);
+  line-height: 1.75;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+
+.markdown-editor [data-note-color="green"],
+.markdown-content [data-note-color="green"] {
+  color: #16803c;
+}
+
+.markdown-editor [data-note-color="red"],
+.markdown-content [data-note-color="red"] {
+  color: #dc2626;
+}
+
+.markdown-editor [data-note-color="amber"],
+.markdown-content [data-note-color="amber"] {
+  color: #b45309;
+}
+
+.markdown-editor .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+.markdown-editor .ProseMirror > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-editor .ProseMirror p,
+.markdown-editor .ProseMirror ul,
+.markdown-editor .ProseMirror ol,
+.markdown-editor .ProseMirror blockquote,
+.markdown-editor .ProseMirror pre,
+.markdown-editor .ProseMirror table {
+  margin: 0 0 0.9rem;
+}
+
+.markdown-editor .ProseMirror h1,
+.markdown-editor .ProseMirror h2,
+.markdown-editor .ProseMirror h3,
+.markdown-editor .ProseMirror h4 {
+  margin: 1.45em 0 0.55em;
+  color: var(--text);
+  letter-spacing: -0.025em;
+  line-height: 1.35;
+}
+
+.markdown-editor .ProseMirror h1 { font-size: 1.75rem; }
+.markdown-editor .ProseMirror h2 { font-size: 1.4rem; }
+.markdown-editor .ProseMirror h3 { font-size: 1.15rem; }
+.markdown-editor .ProseMirror h4 { font-size: 1rem; }
+
+.markdown-editor .ProseMirror ul,
+.markdown-editor .ProseMirror ol {
+  padding-left: 1.55rem;
+}
+
+.markdown-editor .ProseMirror li + li {
+  margin-top: 0.25rem;
+}
+
+.markdown-editor .ProseMirror blockquote {
+  padding: 0.65rem 1rem;
+  border-left: 3px solid var(--primary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--primary-soft);
+  color: var(--text-soft);
+}
+
+.markdown-editor .ProseMirror code {
+  padding: 0.15em 0.38em;
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--primary-ink);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86em;
+}
+
+.markdown-editor .ProseMirror pre {
+  overflow-x: auto;
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+  background: #17201a;
+  color: #f0fdf4;
+}
+
+.markdown-editor .ProseMirror pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.markdown-editor .ProseMirror a {
+  color: var(--primary-strong);
+  font-weight: 600;
+  text-underline-offset: 0.2em;
+}
+
+.markdown-editor .ProseMirror hr {
+  margin: 1.4rem 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.markdown-editor .ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.markdown-editor .ProseMirror th,
+.markdown-editor .ProseMirror td {
+  min-width: 110px;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-editor .ProseMirror th {
+  background: var(--surface-muted);
+}
+
+.markdown-editor .ProseMirror-selectednode {
+  border-radius: 6px;
+  outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
 }
 
 .discard-confirm {
@@ -3144,9 +3377,16 @@ footer {
     flex-direction: column-reverse;
   }
 
-  .note-content-field textarea,
-  .note-editor-preview {
+  .markdown-editor,
+  .markdown-editor-loading,
+  .markdown-editor-fallback textarea,
+  .markdown-editor .milkdown,
+  .markdown-editor .ProseMirror {
     min-height: 330px;
+  }
+
+  .markdown-editor .ProseMirror {
+    padding-inline: 1rem;
   }
 
   .note-topic-create > div {
