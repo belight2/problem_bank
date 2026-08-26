@@ -16,6 +16,9 @@ import type {
   TopicInput,
   WrongAnswer,
   WrongAnswerInput,
+  Workbook,
+  WorkbookInput,
+  WorkbookStudy,
 } from "../types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
@@ -187,6 +190,53 @@ export const wrongAnswerApi = {
       { method: "POST", signal: options.signal },
     );
   },
+};
+
+export const workbookApi = {
+  list: (cardId: number, signal?: AbortSignal) =>
+    request<Workbook[]>(`/cards/${cardId}/workbooks?limit=100`, { signal }),
+  create: (cardId: number, input: WorkbookInput, signal?: AbortSignal) =>
+    request<WorkbookStudy>(`/cards/${cardId}/workbooks`, {
+      method: "POST",
+      body: JSON.stringify(input),
+      signal,
+    }),
+  update: (cardId: number, workbookId: number, title: string) =>
+    request<Workbook>(`/cards/${cardId}/workbooks/${workbookId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
+  remove: (cardId: number, workbookId: number) =>
+    request<void>(`/cards/${cardId}/workbooks/${workbookId}`, { method: "DELETE" }),
+  retry: (cardId: number, workbookId: number, signal?: AbortSignal) =>
+    request<WorkbookStudy>(`/cards/${cardId}/workbooks/${workbookId}/attempts`, {
+      method: "POST",
+      signal,
+    }),
+  regenerate: (
+    cardId: number,
+    workbookId: number,
+    title?: string,
+    signal?: AbortSignal,
+  ) =>
+    request<WorkbookStudy>(`/cards/${cardId}/workbooks/${workbookId}/regenerate`, {
+      method: "POST",
+      body: JSON.stringify({ title: title || null }),
+      signal,
+    }),
+  recordResults: (
+    cardId: number,
+    workbookId: number,
+    sessionId: string,
+    results: StudyResultInput[],
+  ) =>
+    request<{
+      status: "recorded" | "already_recorded";
+      problems: Problem[];
+    }>(`/cards/${cardId}/workbooks/${workbookId}/attempts/${sessionId}/results`, {
+      method: "POST",
+      body: JSON.stringify({ results }),
+    }),
 };
 
 export const randomStudySettingsApi = {

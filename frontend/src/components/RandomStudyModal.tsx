@@ -13,6 +13,8 @@ import {
   problemApi,
   randomStudyPresetApi,
   randomStudySettingsApi,
+  workbookApi,
+  wrongAnswerApi,
 } from "../api/client";
 import { problemTypeLabels } from "../problemTypes";
 import type {
@@ -23,6 +25,9 @@ import type {
   RandomStudyPreset,
   RandomStudySelectionMode,
   Topic,
+  Workbook,
+  WorkbookStudyRequest,
+  WrongAnswerStudyRequest,
 } from "../types";
 import { Modal } from "./Modal";
 import { MarkdownContent } from "./MarkdownContent";
@@ -31,8 +36,12 @@ import { ProblemPrompt } from "./ProblemPrompt";
 interface RandomStudyModalProps {
   card: Card;
   topics: Topic[];
+  availableProblems: Problem[];
   onStatisticsChanged: (problems: Problem[]) => void;
+  onWorkbooksChanged: () => void;
   onClose: () => void;
+  wrongAnswerStudy?: WrongAnswerStudyRequest;
+  workbookStudy?: WorkbookStudyRequest;
 }
 
 type StudyStage =
@@ -41,7 +50,8 @@ type StudyStage =
   | "settings"
   | "study"
   | "grading"
-  | "complete";
+  | "complete"
+  | "unavailable";
 type StudyScope = "all" | "topic";
 type GradeResult = "correct" | "incorrect" | "ungraded";
 
@@ -69,16 +79,32 @@ function isAutomaticallyGraded(problemType: ProblemType) {
   return problemType === "multiple_choice" || problemType === "true_false";
 }
 
+function createDefaultWorkbookTitle() {
+  const now = new Date();
+  const date = new Intl.DateTimeFormat("ko-KR", {
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(now);
+  return `${date} 문제집`;
+}
+
 export function RandomStudyModal({
   card,
   topics,
+  availableProblems,
   onStatisticsChanged,
+  onWorkbooksChanged,
   onClose,
+  wrongAnswerStudy,
+  workbookStudy,
 }: RandomStudyModalProps) {
   const allScopeId = useId();
   const topicScopeId = useId();
   const topicSelectId = useId();
   const countId = useId();
+  const workbookTitleId = useId();
   const allProblemsId = useId();
   const incorrectRateId = useId();
   const incorrectCountId = useId();
@@ -91,11 +117,14 @@ export function RandomStudyModal({
   const responseName = useId();
   const questionRef = useRef<HTMLHeadingElement>(null);
   const requestController = useRef<AbortController | null>(null);
+  const wrongStudyStartedRef = useRef(false);
+  const workbookStudyStartedRef = useRef(false);
 
   const [stage, setStage] = useState<StudyStage>("loading");
   const [scope, setScope] = useState<StudyScope>("all");
   const [topicId, setTopicId] = useState<number | "">(topics[0]?.id ?? "");
   const [count, setCount] = useState("10");
+  const [workbookTitle, setWorkbookTitle] = useState(createDefaultWorkbookTitle);
   const [selectionMode, setSelectionMode] = useState<RandomStudySelectionMode>("all");
   const [incorrectRateThreshold, setIncorrectRateThreshold] = useState("50");
   const [minimumAttemptCount, setMinimumAttemptCount] = useState("3");
@@ -118,6 +147,7 @@ export function RandomStudyModal({
   const [requestedCount, setRequestedCount] = useState(0);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [studySessionId, setStudySessionId] = useState<string | null>(null);
+  const [currentWorkbook, setCurrentWorkbook] = useState<Workbook | null>(null);
   const [submittingResults, setSubmittingResults] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -127,12 +157,46 @@ export function RandomStudyModal({
   const [loadingReferenceNoteId, setLoadingReferenceNoteId] = useState<number | null>(null);
   const [referenceNoteErrors, setReferenceNoteErrors] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [loadingMessage, setLoadingMessage] = useState("설정을 불러오는 중…");
+  const [loadingMessage, setLoadingMessage] = useState(
+    wrongAnswerStudy
+      ? "오답을 불러오는 중…"
+      : workbookStudy
+        ? "문제집을 불러오는 중…"
+        : "설정을 불러오는 중…",
+  );
 
   const activePreset = presets.find((preset) => preset.id === activePresetId) ?? null;
   const editingPreset = presets.find((preset) => preset.id === editingPresetId) ?? null;
   const selectedTopic =
     scope === "topic" ? topics.find((topic) => topic.id === topicId) : undefined;
+  const maxSelectableProblems = Math.min(
+    100,
+    availableProblems.filter((problem) => {
+      if (selectedTopic && problem.topic_id !== selectedTopic.id) return false;
+      if (selectionMode === "incorrect_rate") {
+        const rateThreshold = Number(incorrectRateThreshold);
+        const attemptThreshold = Number(minimumAttemptCount);
+        if (
+          !Number.isInteger(rateThreshold)
+          || rateThreshold < 1
+          || rateThreshold > 100
+          || !Number.isInteger(attemptThreshold)
+          || attemptThreshold < 1
+        ) {
+          return true;
+        }
+        const gradedCount = problem.correct_count + problem.incorrect_count;
+        return gradedCount >= attemptThreshold
+          && problem.incorrect_count * 100 >= gradedCount * rateThreshold;
+      }
+      if (selectionMode === "incorrect_count") {
+        const countThreshold = Number(incorrectCountThreshold);
+        if (!Number.isInteger(countThreshold) || countThreshold < 1) return true;
+        return problem.incorrect_count >= countThreshold;
+      }
+      return true;
+    }).length,
+  );
   const currentProblem = problems[currentIndex] ?? null;
   const currentAnswer = currentProblem ? (answers[currentProblem.id] ?? "") : "";
   const responseOptions = currentProblem
@@ -179,8 +243,16 @@ export function RandomStudyModal({
 
   const getConfiguration = (): StudyConfiguration | null => {
     const parsedCount = Number(count);
-    if (!Number.isInteger(parsedCount) || parsedCount < 1 || parsedCount > 100) {
-      setError("문제 개수는 1부터 100 사이의 정수로 입력해 주세요.");
+    if (maxSelectableProblems === 0) {
+      setError("현재 범위와 출제 기준에 맞는 문제가 없습니다.");
+      return null;
+    }
+    if (
+      !Number.isInteger(parsedCount)
+      || parsedCount < 1
+      || parsedCount > maxSelectableProblems
+    ) {
+      setError(`문제 개수는 1부터 ${maxSelectableProblems} 사이로 입력해 주세요.`);
       return null;
     }
     if (scope === "topic" && !selectedTopic) {
@@ -242,6 +314,22 @@ export function RandomStudyModal({
   }, [currentIndex, stage]);
 
   useEffect(() => {
+    if (maxSelectableProblems === 0) return;
+    if (count === "") return;
+    const parsed = Number(count);
+    if (!Number.isFinite(parsed)) return;
+    const clamped = String(
+      Math.min(Math.max(Math.trunc(parsed), 1), maxSelectableProblems),
+    );
+    if (clamped !== count) setCount(clamped);
+  }, [count, maxSelectableProblems]);
+
+  useEffect(() => {
+    if (wrongAnswerStudy || workbookStudy) {
+      setStage("overview");
+      return;
+    }
+
     const controller = new AbortController();
     requestController.current = controller;
 
@@ -274,7 +362,96 @@ export function RandomStudyModal({
       });
 
     return () => controller.abort();
-  }, [applyConfiguration, card.id]);
+  }, [applyConfiguration, card.id, workbookStudy, wrongAnswerStudy]);
+
+  useEffect(() => () => requestController.current?.abort(), []);
+
+  useEffect(() => {
+    if (!wrongAnswerStudy || stage !== "overview" || wrongStudyStartedRef.current) return;
+
+    wrongStudyStartedRef.current = true;
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    setLoadingMessage("오답을 불러오는 중…");
+    setStage("loading");
+    setStudySessionId(null);
+    setError(null);
+
+    wrongAnswerApi.study(card.id, {
+      count: wrongAnswerStudy.problemCount,
+      problemId: wrongAnswerStudy.problemId,
+      signal: controller.signal,
+    })
+      .then((result) => {
+        if (result.problems.length === 0 || result.session_id === null) {
+          setError("다시 풀 수 있는 오답이 없습니다.");
+          setStage("unavailable");
+          return;
+        }
+        setProblems(result.problems);
+        setStudySessionId(result.session_id);
+        onStatisticsChanged(result.problems);
+        setRequestedCount(wrongAnswerStudy.problemCount);
+        setCurrentIndex(0);
+        setAnswers({});
+        setResults({});
+        setReferenceNotes({});
+        setOpenReferenceProblemId(null);
+        setLoadingReferenceNoteId(null);
+        setReferenceNoteErrors({});
+        setError(null);
+        setStage("study");
+      })
+      .catch((requestError: unknown) => {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        setError(getErrorMessage(requestError));
+        setStage("unavailable");
+      });
+  }, [card.id, onStatisticsChanged, stage, wrongAnswerStudy]);
+
+  const loadWorkbookStudy = useCallback(async (request: WorkbookStudyRequest) => {
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    setLoadingMessage(
+      request.mode === "retry" ? "문제집을 불러오는 중…" : "새 문제집을 만드는 중…",
+    );
+    setStage("loading");
+    setStudySessionId(null);
+    setError(null);
+
+    try {
+      const result = request.mode === "retry"
+        ? await workbookApi.retry(card.id, request.workbookId, controller.signal)
+        : await workbookApi.regenerate(card.id, request.workbookId, undefined, controller.signal);
+      setCurrentWorkbook(result.workbook);
+      setProblems(result.problems);
+      setStudySessionId(result.session_id);
+      onStatisticsChanged(result.problems);
+      onWorkbooksChanged();
+      setRequestedCount(result.workbook.problem_count);
+      setCurrentIndex(0);
+      setAnswers({});
+      setResults({});
+      setReferenceNotes({});
+      setOpenReferenceProblemId(null);
+      setLoadingReferenceNoteId(null);
+      setReferenceNoteErrors({});
+      setError(null);
+      setStage("study");
+    } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+      setError(getErrorMessage(requestError));
+      setStage("unavailable");
+    }
+  }, [card.id, onStatisticsChanged, onWorkbooksChanged]);
+
+  useEffect(() => {
+    if (!workbookStudy || stage !== "overview" || workbookStudyStartedRef.current) return;
+    workbookStudyStartedRef.current = true;
+    void loadWorkbookStudy(workbookStudy);
+  }, [loadWorkbookStudy, stage, workbookStudy]);
 
   const loadProblemSet = async (configuration: StudyConfiguration) => {
     const configuredTopic = configuration.topicId === undefined
@@ -283,6 +460,11 @@ export function RandomStudyModal({
     if (configuration.topicId !== undefined && !configuredTopic) {
       setStage("overview");
       setError("선택한 주제를 찾을 수 없습니다.");
+      return;
+    }
+    const normalizedWorkbookTitle = workbookTitle.trim();
+    if (!normalizedWorkbookTitle) {
+      setError("문제집 이름을 입력해 주세요.");
       return;
     }
 
@@ -308,26 +490,16 @@ export function RandomStudyModal({
         },
         controller.signal,
       );
-      const result = await problemApi.random(card.id, {
-        count: savedSettings.problem_count,
-        topicId: savedSettings.topic_id ?? undefined,
-        selectionMode: savedSettings.selection_mode,
-        incorrectRateThreshold: savedSettings.incorrect_rate_threshold,
-        minimumAttemptCount: savedSettings.minimum_attempt_count,
-        incorrectCountThreshold: savedSettings.incorrect_count_threshold,
-        signal: controller.signal,
-      });
-      if (result.problems.length === 0 || result.session_id === null) {
-        setStage("overview");
-        setError(
-          configuration.selectionMode !== "all"
-            ? "설정한 출제 기준에 맞는 문제가 없습니다."
-            : configuredTopic
-              ? `‘${configuredTopic.name}’ 주제에 등록된 문제가 없습니다.`
-              : "이 카드에 등록된 문제가 없습니다.",
-        );
-        return;
-      }
+      const result = await workbookApi.create(card.id, {
+        title: normalizedWorkbookTitle,
+        problem_count: savedSettings.problem_count,
+        topic_id: savedSettings.topic_id,
+        preset_id: savedSettings.preset_id,
+        selection_mode: savedSettings.selection_mode,
+        incorrect_rate_threshold: savedSettings.incorrect_rate_threshold,
+        minimum_attempt_count: savedSettings.minimum_attempt_count,
+        incorrect_count_threshold: savedSettings.incorrect_count_threshold,
+      }, controller.signal);
 
       applyConfiguration({
         problemCount: savedSettings.problem_count,
@@ -338,9 +510,11 @@ export function RandomStudyModal({
         minimumAttemptCount: savedSettings.minimum_attempt_count,
         incorrectCountThreshold: savedSettings.incorrect_count_threshold,
       });
+      setCurrentWorkbook(result.workbook);
       setProblems(result.problems);
       setStudySessionId(result.session_id);
       onStatisticsChanged(result.problems);
+      onWorkbooksChanged();
       setRequestedCount(savedSettings.problem_count);
       setCurrentIndex(0);
       setAnswers({});
@@ -409,7 +583,7 @@ export function RandomStudyModal({
     const configuration = getConfiguration();
     const trimmedName = presetName.trim();
     if (!trimmedName) {
-      setError("프리셋 이름을 입력해 주세요.");
+      setError("템플릿 이름을 입력해 주세요.");
       return;
     }
     if (!configuration) return;
@@ -597,15 +771,21 @@ export function RandomStudyModal({
     setSubmittingResults(true);
     setError(null);
     try {
-      const recorded = await problemApi.recordStudyResults(
-        card.id,
-        studySessionId,
-        problems.map((problem) => ({
+      const studyResults = problems.map((problem) => ({
           problem_id: problem.id,
           result: results[problem.id] ?? "ungraded",
-        })),
-      );
+          submitted_answer: answers[problem.id] ?? null,
+        }));
+      const recorded = currentWorkbook
+        ? await workbookApi.recordResults(
+            card.id,
+            currentWorkbook.id,
+            studySessionId,
+            studyResults,
+          )
+        : await problemApi.recordStudyResults(card.id, studySessionId, studyResults);
       onStatisticsChanged(recorded.problems);
+      if (currentWorkbook) onWorkbooksChanged();
       setStage("complete");
     } catch (submitError) {
       setError(getErrorMessage(submitError));
@@ -614,24 +794,28 @@ export function RandomStudyModal({
     }
   };
 
-  const modalTitle = stage === "settings"
-    ? "랜덤 문제 설정"
+  const modalTitle = wrongAnswerStudy
+    ? "오답 다시 풀기"
+    : workbookStudy && !currentWorkbook
+      ? workbookStudy.mode === "retry" ? "문제집 다시 풀기" : "새 문제집 만들기"
+    : stage === "settings"
+    ? "문제집 설정"
     : stage === "grading"
       ? "전체 문제 채점"
     : stage === "complete"
-      ? "문제 묶음 완료"
-      : "랜덤 문제 풀기";
+      ? "문제집 풀이 완료"
+      : currentWorkbook?.title ?? "새 문제집";
 
   return (
     <Modal
       title={modalTitle}
       onClose={onClose}
       size="wide"
-      headerAction={stage === "overview" ? (
+      headerAction={!wrongAnswerStudy && !workbookStudy && stage === "overview" ? (
         <button
           className="settings-gear"
           type="button"
-          aria-label="랜덤 문제 설정 열기"
+          aria-label="문제집 설정 열기"
           title="설정"
           onClick={openSettings}
         >
@@ -642,8 +826,17 @@ export function RandomStudyModal({
         </button>
       ) : undefined}
     >
-      {stage === "overview" && (
+      {stage === "overview" && !wrongAnswerStudy && !workbookStudy && (
         <section className="study-overview">
+          <label className="field workbook-title-field" htmlFor={workbookTitleId}>
+            <span>문제집 이름</span>
+            <input
+              id={workbookTitleId}
+              value={workbookTitle}
+              maxLength={160}
+              onChange={(event) => setWorkbookTitle(event.target.value)}
+            />
+          </label>
           <div className="study-config-grid">
             <div>
               <span>문제 범위</span>
@@ -666,17 +859,27 @@ export function RandomStudyModal({
               닫기
             </button>
             <button className="button button--primary" type="button" onClick={handleStart}>
-              시작
+              문제집 만들고 시작
             </button>
           </div>
         </section>
+      )}
+
+      {stage === "unavailable" && (
+        <div className="study-unavailable" aria-live="polite">
+          <span className="empty-index" aria-hidden="true">!</span>
+          <h3>{error ?? "문제를 불러오지 못했어요"}</h3>
+          <button className="button button--primary" type="button" onClick={onClose}>
+            닫기
+          </button>
+        </div>
       )}
 
       {stage === "settings" && (
         <section className="preset-settings-layout">
           <aside className="preset-sidebar">
             <div className="preset-sidebar-heading">
-              <strong>프리셋</strong>
+              <strong>문제집 템플릿</strong>
               <button type="button" onClick={beginNewPreset}>새로 만들기</button>
             </div>
             <div className="preset-list">
@@ -705,7 +908,9 @@ export function RandomStudyModal({
                   </small>
                 </button>
               ))}
-              {presets.length === 0 && <p className="preset-empty">저장된 프리셋이 없습니다.</p>}
+              {presets.length === 0 && (
+                <p className="preset-empty">저장된 템플릿이 없습니다.</p>
+              )}
             </div>
           </aside>
 
@@ -788,16 +993,31 @@ export function RandomStudyModal({
               </div>
 
               <label className="field problem-count-field" htmlFor={countId}>
-                <span>문제 개수</span>
+                <span>
+                  문제 개수 <small>최대 {maxSelectableProblems}개</small>
+                </span>
                 <input
                   id={countId}
                   type="number"
                   inputMode="numeric"
                   min={1}
-                  max={100}
+                  max={Math.max(maxSelectableProblems, 1)}
                   step={1}
                   value={count}
-                  onChange={(event) => setCount(event.target.value)}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    if (next === "") {
+                      setCount("");
+                      return;
+                    }
+                    const parsed = Number(next);
+                    if (!Number.isFinite(parsed)) return;
+                    setCount(String(Math.min(
+                      Math.max(Math.trunc(parsed), 1),
+                      Math.max(maxSelectableProblems, 1),
+                    )));
+                  }}
+                  disabled={maxSelectableProblems === 0}
                   required
                 />
               </label>
@@ -918,11 +1138,11 @@ export function RandomStudyModal({
                     onClick={() => void handleApplyPreset()}
                     disabled={busy}
                   >
-                    이 프리셋 사용
+                    이 템플릿 사용
                   </button>
                 )}
                 <button className="button button--primary" type="submit" disabled={busy}>
-                  {busy ? "저장 중…" : editingPreset ? "변경 저장" : "프리셋 저장"}
+                  {busy ? "저장 중…" : editingPreset ? "변경 저장" : "템플릿 저장"}
                 </button>
               </div>
             </div>
@@ -941,7 +1161,7 @@ export function RandomStudyModal({
           <div className="study-progress">
             <div>
               <strong>현재 {currentIndex + 1} / 전체 {problems.length}</strong>
-              <span>{selectedTopic?.name || "카드 전체"}</span>
+              <span>{currentWorkbook?.topic_name ?? selectedTopic?.name ?? "카드 전체"}</span>
             </div>
             <progress value={currentIndex + 1} max={problems.length}>
               {currentIndex + 1} / {problems.length}
@@ -1172,18 +1392,36 @@ export function RandomStudyModal({
             <div><strong>{ungradedCount}</strong><span>채점 제외</span></div>
           </div>
           <div className="study-actions">
-            <button className="button button--ghost" type="button" onClick={openSettings}>
-              설정
-            </button>
+            {!wrongAnswerStudy && currentWorkbook && (
+              <button
+                className="button button--ghost"
+                type="button"
+                onClick={() => void loadWorkbookStudy({
+                  workbookId: currentWorkbook.id,
+                  mode: "regenerate",
+                })}
+              >
+                같은 설정으로 새 문제집
+              </button>
+            )}
             <button
               className="button button--primary"
               type="button"
               onClick={() => {
-                const configuration = getConfiguration();
-                if (configuration) void loadProblemSet(configuration);
+                if (wrongAnswerStudy) {
+                  wrongStudyStartedRef.current = false;
+                  setStage("overview");
+                  return;
+                }
+                if (currentWorkbook) {
+                  void loadWorkbookStudy({
+                    workbookId: currentWorkbook.id,
+                    mode: "retry",
+                  });
+                }
               }}
             >
-              같은 설정으로 다시 풀기
+              {wrongAnswerStudy ? "오답 다시 풀기" : "이 문제집 다시 풀기"}
             </button>
           </div>
         </div>

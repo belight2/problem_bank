@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { cardApi, getErrorMessage, noteApi, problemApi, topicApi } from "./api/client";
+import {
+  cardApi,
+  getErrorMessage,
+  noteApi,
+  problemApi,
+  topicApi,
+  workbookApi,
+  wrongAnswerApi,
+} from "./api/client";
 import { CardFormModal } from "./components/CardFormModal";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { NoteArchive } from "./components/NoteArchive";
@@ -11,6 +19,8 @@ import { ProblemOptions } from "./components/ProblemOptions";
 import { ProblemPrompt } from "./components/ProblemPrompt";
 import { RandomStudyModal } from "./components/RandomStudyModal";
 import { TopicManagementModal } from "./components/TopicManagementModal";
+import { WorkbookArchive } from "./components/WorkbookArchive";
+import { WrongAnswerArchive } from "./components/WrongAnswerArchive";
 import { problemTypeLabels } from "./problemTypes";
 import type {
   Card,
@@ -20,6 +30,11 @@ import type {
   Problem,
   ProblemInput,
   Topic,
+  Workbook,
+  WorkbookStudyRequest,
+  WrongAnswer,
+  WrongAnswerInput,
+  WrongAnswerStudyRequest,
 } from "./types";
 
 const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
@@ -39,8 +54,14 @@ function App() {
   const [problemsLoading, setProblemsLoading] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
+  const [wrongAnswers, setWrongAnswers] = useState<WrongAnswer[]>([]);
+  const [wrongAnswersLoading, setWrongAnswersLoading] = useState(false);
+  const [workbooks, setWorkbooks] = useState<Workbook[]>([]);
+  const [workbooksLoading, setWorkbooksLoading] = useState(false);
   const [cardContentLoaded, setCardContentLoaded] = useState(false);
-  const [contentView, setContentView] = useState<"problems" | "notes">("problems");
+  const [contentView, setContentView] = useState<
+    "problems" | "notes" | "wrongAnswers" | "workbooks"
+  >("problems");
   const cardContentRequestId = useRef(0);
 
   const [cardEditor, setCardEditor] = useState<Card | null | undefined>(undefined);
@@ -52,6 +73,8 @@ function App() {
   const [problemToDelete, setProblemToDelete] = useState<Problem | null>(null);
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
   const [randomStudyOpen, setRandomStudyOpen] = useState(false);
+  const [wrongAnswerStudy, setWrongAnswerStudy] = useState<WrongAnswerStudyRequest | null>(null);
+  const [workbookStudy, setWorkbookStudy] = useState<WorkbookStudyRequest | null>(null);
   const [topicManagerOpen, setTopicManagerOpen] = useState(false);
 
   const selectedCard = useMemo(
@@ -81,17 +104,29 @@ function App() {
     setTopicsLoading(true);
     setProblemsLoading(true);
     setNotesLoading(true);
+    setWrongAnswersLoading(true);
+    setWorkbooksLoading(true);
     setAppError(null);
     try {
-      const [loadedTopics, loadedProblems, loadedNotes] = await Promise.all([
-        topicApi.list(cardId),
-        problemApi.list(cardId),
-        noteApi.list(cardId),
-      ]);
+      const [
+        loadedTopics,
+        loadedProblems,
+        loadedNotes,
+        loadedWrongAnswers,
+        loadedWorkbooks,
+      ] = await Promise.all([
+          topicApi.list(cardId),
+          problemApi.list(cardId),
+          noteApi.list(cardId),
+          wrongAnswerApi.list(cardId),
+          workbookApi.list(cardId),
+        ]);
       if (requestId !== cardContentRequestId.current) return;
       setTopics(loadedTopics);
       setProblems(loadedProblems);
       setNotes(loadedNotes);
+      setWrongAnswers(loadedWrongAnswers);
+      setWorkbooks(loadedWorkbooks);
       setCardContentLoaded(true);
     } catch (error) {
       if (requestId !== cardContentRequestId.current) return;
@@ -101,6 +136,8 @@ function App() {
         setTopicsLoading(false);
         setProblemsLoading(false);
         setNotesLoading(false);
+        setWrongAnswersLoading(false);
+        setWorkbooksLoading(false);
       }
     }
   }, []);
@@ -158,6 +195,13 @@ function App() {
       setProblems((current) =>
         current.map((problem) => (problem.id === updated.id ? updated : problem)),
       );
+      setWrongAnswers((current) =>
+        current.map((wrongAnswer) =>
+          wrongAnswer.problem_id === updated.id
+            ? { ...wrongAnswer, problem: updated }
+            : wrongAnswer,
+        ),
+      );
       setProblemEditor(undefined);
       setSourceNoteForProblem(null);
     } else {
@@ -180,6 +224,16 @@ function App() {
           problem.source_note_id === updated.id
             ? { ...problem, source_note_title: updated.title }
             : problem,
+        ),
+      );
+      setWrongAnswers((current) =>
+        current.map((wrongAnswer) =>
+          wrongAnswer.problem.source_note_id === updated.id
+            ? {
+                ...wrongAnswer,
+                problem: { ...wrongAnswer.problem, source_note_title: updated.title },
+              }
+            : wrongAnswer,
         ),
       );
     } else {
@@ -218,6 +272,16 @@ function App() {
           : note,
       ),
     );
+    setWrongAnswers((current) =>
+      current.map((wrongAnswer) =>
+        wrongAnswer.problem.topic_id === topic.id
+          ? {
+              ...wrongAnswer,
+              problem: { ...wrongAnswer.problem, topic_name: topic.name },
+            }
+          : wrongAnswer,
+      ),
+    );
   };
 
   const handleTopicDeleted = (topicId: number) => {
@@ -248,6 +312,53 @@ function App() {
           : problem;
       }),
     );
+    if (selectedCardId !== null) {
+      setWrongAnswersLoading(true);
+      wrongAnswerApi
+        .list(selectedCardId)
+        .then(setWrongAnswers)
+        .catch((error: unknown) => setAppError(getErrorMessage(error)))
+        .finally(() => setWrongAnswersLoading(false));
+    }
+  };
+
+  const handleWrongAnswerUpdate = async (problemId: number, input: WrongAnswerInput) => {
+    if (!selectedCard) return;
+    const updated = await wrongAnswerApi.update(selectedCard.id, problemId, input);
+    setWrongAnswers((current) =>
+      current.map((wrongAnswer) =>
+        wrongAnswer.problem_id === problemId ? updated : wrongAnswer,
+      ),
+    );
+  };
+
+  const refreshWorkbooks = useCallback(() => {
+    if (selectedCardId === null) return;
+    setWorkbooksLoading(true);
+    workbookApi
+      .list(selectedCardId)
+      .then(setWorkbooks)
+      .catch((error: unknown) => setAppError(getErrorMessage(error)))
+      .finally(() => setWorkbooksLoading(false));
+  }, [selectedCardId]);
+
+  const handleDeleteWorkbook = async (workbook: Workbook) => {
+    if (!selectedCard) return;
+    await workbookApi.remove(selectedCard.id, workbook.id);
+    setWorkbooks((current) => current.filter((item) => item.id !== workbook.id));
+  };
+
+  const openWrongAnswerStudy = (problemId?: number) => {
+    const unresolvedCount = wrongAnswers.filter((item) => item.status !== "resolved").length;
+    setWrongAnswerStudy({
+      problemId,
+      problemCount: problemId === undefined ? Math.max(unresolvedCount, 1) : 1,
+    });
+  };
+
+  const openWrongAnswerNote = (noteId: number) => {
+    const note = notes.find((candidate) => candidate.id === noteId);
+    if (note) setNoteViewer(note);
   };
 
   const handleDeleteCard = async () => {
@@ -260,9 +371,13 @@ function App() {
       setTopics([]);
       setProblems([]);
       setNotes([]);
+      setWrongAnswers([]);
+      setWorkbooks([]);
       setTopicsLoading(false);
       setProblemsLoading(false);
       setNotesLoading(false);
+      setWrongAnswersLoading(false);
+      setWorkbooksLoading(false);
       setCardContentLoaded(false);
     }
     setCardToDelete(null);
@@ -272,6 +387,9 @@ function App() {
     if (!selectedCard || !problemToDelete) return;
     await problemApi.remove(selectedCard.id, problemToDelete.id);
     setProblems((current) => current.filter((problem) => problem.id !== problemToDelete.id));
+    setWrongAnswers((current) =>
+      current.filter((wrongAnswer) => wrongAnswer.problem_id !== problemToDelete.id),
+    );
     setProblemToDelete(null);
   };
 
@@ -286,6 +404,20 @@ function App() {
           : problem,
       ),
     );
+    setWrongAnswers((current) =>
+      current.map((wrongAnswer) =>
+        wrongAnswer.problem.source_note_id === noteToDelete.id
+          ? {
+              ...wrongAnswer,
+              problem: {
+                ...wrongAnswer.problem,
+                source_note_id: null,
+                source_note_title: null,
+              },
+            }
+          : wrongAnswer,
+      ),
+    );
     setNoteToDelete(null);
   };
 
@@ -293,9 +425,13 @@ function App() {
     setTopics([]);
     setProblems([]);
     setNotes([]);
+    setWrongAnswers([]);
+    setWorkbooks([]);
     setTopicsLoading(true);
     setProblemsLoading(true);
     setNotesLoading(true);
+    setWrongAnswersLoading(true);
+    setWorkbooksLoading(true);
     setCardContentLoaded(false);
     setAppError(null);
     setSelectedCardId(cardId);
@@ -311,12 +447,18 @@ function App() {
     setTopics([]);
     setProblems([]);
     setNotes([]);
+    setWrongAnswers([]);
+    setWorkbooks([]);
     setTopicsLoading(false);
     setProblemsLoading(false);
     setNotesLoading(false);
+    setWrongAnswersLoading(false);
+    setWorkbooksLoading(false);
     setCardContentLoaded(false);
     setTopicManagerOpen(false);
     setRandomStudyOpen(false);
+    setWrongAnswerStudy(null);
+    setWorkbookStudy(null);
     setContentView("problems");
     setNoteEditor(undefined);
     setNoteViewer(null);
@@ -386,7 +528,7 @@ function App() {
             <div className="detail-hero">
               <div>
                 <p className="eyebrow">
-                  Study card · {problems.length} problems · {notes.length} notes
+                  Study card · {problems.length} problems · {notes.length} notes · {workbooks.length} books
                 </p>
                 <h1>{selectedCard.title}</h1>
                 {selectedCard.description && <p>{selectedCard.description}</p>}
@@ -418,6 +560,22 @@ function App() {
               >
                 노트 <span>{notes.length}</span>
               </button>
+              <button
+                className={contentView === "wrongAnswers" ? "is-active" : ""}
+                type="button"
+                aria-current={contentView === "wrongAnswers" ? "page" : undefined}
+                onClick={() => setContentView("wrongAnswers")}
+              >
+                오답노트 <span>{wrongAnswers.length}</span>
+              </button>
+              <button
+                className={contentView === "workbooks" ? "is-active" : ""}
+                type="button"
+                aria-current={contentView === "workbooks" ? "page" : undefined}
+                onClick={() => setContentView("workbooks")}
+              >
+                문제집 <span>{workbooks.length}</span>
+              </button>
             </nav>
 
             {contentView === "problems" ? (
@@ -438,7 +596,7 @@ function App() {
                   onClick={() => setRandomStudyOpen(true)}
                   disabled={!cardContentLoaded || problemsLoading || problems.length === 0}
                 >
-                  랜덤 문제 풀기
+                  새 문제집
                 </button>
                 <button
                   className="button button--primary"
@@ -528,7 +686,7 @@ function App() {
               </div>
             )}
               </>
-            ) : (
+            ) : contentView === "notes" ? (
               <>
                 <div className="problem-toolbar note-toolbar">
                   <div className="toolbar-actions">
@@ -552,6 +710,25 @@ function App() {
                   onCreate={() => setNoteEditor(null)}
                 />
               </>
+            ) : contentView === "wrongAnswers" ? (
+              <WrongAnswerArchive
+                wrongAnswers={wrongAnswers}
+                loading={wrongAnswersLoading || problemsLoading || topicsLoading}
+                loaded={cardContentLoaded}
+                onUpdate={handleWrongAnswerUpdate}
+                onStudy={openWrongAnswerStudy}
+                onOpenNote={openWrongAnswerNote}
+                onManageTopics={() => setTopicManagerOpen(true)}
+              />
+            ) : (
+              <WorkbookArchive
+                workbooks={workbooks}
+                loading={workbooksLoading}
+                loaded={cardContentLoaded}
+                onCreate={() => setRandomStudyOpen(true)}
+                onStudy={setWorkbookStudy}
+                onDelete={handleDeleteWorkbook}
+              />
             )}
           </section>
         ) : (
@@ -683,12 +860,20 @@ function App() {
           onConfirm={handleDeleteNote}
         />
       )}
-      {randomStudyOpen && selectedCard && (
+      {(randomStudyOpen || wrongAnswerStudy || workbookStudy) && selectedCard && (
         <RandomStudyModal
           card={selectedCard}
           topics={topics}
+          availableProblems={problems}
           onStatisticsChanged={handleProblemStatisticsChanged}
-          onClose={() => setRandomStudyOpen(false)}
+          wrongAnswerStudy={wrongAnswerStudy ?? undefined}
+          workbookStudy={workbookStudy ?? undefined}
+          onWorkbooksChanged={refreshWorkbooks}
+          onClose={() => {
+            setRandomStudyOpen(false);
+            setWrongAnswerStudy(null);
+            setWorkbookStudy(null);
+          }}
         />
       )}
       {topicManagerOpen && selectedCard && (

@@ -110,6 +110,58 @@ export interface WrongAnswerStudyRequest {
   problemCount: number;
 }
 
+export interface WorkbookAttempt {
+  id: string;
+  attempt_number: number;
+  status: "in_progress" | "completed";
+  correct_count: number;
+  incorrect_count: number;
+  ungraded_count: number;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface Workbook {
+  id: number;
+  card_id: number;
+  title: string;
+  topic_id: number | null;
+  topic_name: string | null;
+  preset_id: number | null;
+  preset_name: string | null;
+  problem_count: number;
+  requested_problem_count: number;
+  selection_mode: RandomStudySelectionMode;
+  incorrect_rate_threshold: number;
+  minimum_attempt_count: number;
+  incorrect_count_threshold: number;
+  attempts: WorkbookAttempt[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkbookInput {
+  title: string | null;
+  topic_id: number | null;
+  preset_id: number | null;
+  problem_count: number;
+  selection_mode: RandomStudySelectionMode;
+  incorrect_rate_threshold: number;
+  minimum_attempt_count: number;
+  incorrect_count_threshold: number;
+}
+
+export interface WorkbookStudy {
+  workbook: Workbook;
+  session_id: string;
+  problems: Problem[];
+}
+
+export interface WorkbookStudyRequest {
+  workbookId: number;
+  mode: "retry" | "regenerate";
+}
+
 export type RandomStudySelectionMode = "all" | "incorrect_rate" | "incorrect_count";
 
 export interface RandomStudySettings {

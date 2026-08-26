@@ -253,6 +253,7 @@ def record_study_results(
             wrong_answer.last_submitted_answer = submitted_answer_by_problem_id[problem.id]
             wrong_answer.last_incorrect_at = completed_at
 
+    session.results = [result.model_dump() for result in payload.results]
     session.completed_at = completed_at
     db.commit()
     return {"status": "recorded", "problems": problems}

@@ -5,6 +5,7 @@ from app.models.random_study_preset import RandomStudyPreset
 from app.models.random_study_setting import RandomStudySetting
 from app.models.study_session import StudySession
 from app.models.topic import Topic
+from app.models.workbook import Workbook
 from app.models.wrong_answer import WrongAnswer, WrongAnswerStatus
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "Topic",
     "WrongAnswer",
     "WrongAnswerStatus",
+    "Workbook",
 ]
