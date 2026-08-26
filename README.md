@@ -6,7 +6,7 @@ React·TypeScript 프론트엔드와 FastAPI 백엔드로 구성한 개인용 �
 React (localhost:5571) → FastAPI (localhost:8899) → PostgreSQL (localhost:25431)
 ```
 
-카드를 만들고 그 안에 주제를 별도로 관리한 뒤 문제에 연결할 수 있습니다. 문제 생성 시 등록된 주제를 선택하므로 문제마다 주제 이름을 다시 입력하면서 생기는 오타를 방지합니다. 문제는 단답형, 주관식, 객관식, O/X, 빈칸 추론 형식으로 만들 수 있으며, 프론트엔드에서는 카드·주제·문제 CRUD와 설정한 개수만큼 문제를 무작위로 제공하는 기능을 사용할 수 있습니다. 객관식과 O/X는 자동 채점하고 나머지 유형은 사용자가 직접 판정합니다.
+카드를 만들고 그 안에 주제를 별도로 관리한 뒤 문제와 Markdown 공부 노트를 연결할 수 있습니다. 문제 생성 시 등록된 주제를 선택하므로 문제마다 주제 이름을 다시 입력하면서 생기는 오타를 방지합니다. 노트에서 바로 문제를 만들면 해당 노트가 선택적으로 문제의 참고 자료로 연결됩니다. 문제는 단답형, 주관식, 객관식, O/X, 빈칸 추론 형식으로 만들 수 있으며, 프론트엔드에서는 카드·주제·문제·노트 CRUD와 설정한 개수만큼 문제를 무작위로 제공하는 기능을 사용할 수 있습니다. 객관식과 O/X는 자동 채점하고 나머지 유형은 사용자가 직접 판정합니다.
 
 ## 기술 스택
 
@@ -138,12 +138,17 @@ npm run dev
 | `GET` | `/cards` | 카드 목록 조회 |
 | `GET` | `/cards/{card_id}` | 카드 단건 조회 |
 | `PATCH` | `/cards/{card_id}` | 카드 수정 |
-| `DELETE` | `/cards/{card_id}` | 카드와 소속 주제·문제 삭제 |
+| `DELETE` | `/cards/{card_id}` | 카드와 소속 주제·문제·노트 삭제 |
 | `POST` | `/cards/{card_id}/topics` | 주제 생성 |
 | `GET` | `/cards/{card_id}/topics` | 주제 목록 조회 |
 | `GET` | `/cards/{card_id}/topics/{topic_id}` | 주제 단건 조회 |
 | `PATCH` | `/cards/{card_id}/topics/{topic_id}` | 주제 이름 수정 |
 | `DELETE` | `/cards/{card_id}/topics/{topic_id}` | 사용하지 않는 주제 삭제 |
+| `POST` | `/cards/{card_id}/notes` | Markdown 노트 생성 |
+| `GET` | `/cards/{card_id}/notes` | 노트 목록 조회 |
+| `GET` | `/cards/{card_id}/notes/{note_id}` | 노트 단건 조회 |
+| `PATCH` | `/cards/{card_id}/notes/{note_id}` | 노트 수정 |
+| `DELETE` | `/cards/{card_id}/notes/{note_id}` | 노트 삭제 및 문제의 참고 연결 해제 |
 | `POST` | `/cards/{card_id}/problems` | 문제 생성 |
 | `GET` | `/cards/{card_id}/problems` | 문제 목록 조회 |
 | `GET` | `/cards/{card_id}/problems?topic_id={topic_id}` | 주제별 문제 조회 |
@@ -157,6 +162,8 @@ npm run dev
 카드는 `title`, 선택적인 `description`을 갖습니다. 주제는 카드 안에서 별도로 생성하며 같은 카드에는 동일한 이름의 주제를 중복 생성할 수 없습니다. 사용 중인 주제는 삭제할 수 없으므로 먼저 소속 문제의 주제를 변경하거나 문제를 삭제해야 합니다.
 
 문제는 `topic_id`, `question`, 유형에 따라 필수 또는 선택인 `answer`를 가지며 응답에는 표시용 `topic_name`이 함께 포함됩니다. 다른 카드의 주제를 연결하거나 문제를 다른 카드로 이동하는 기능은 제공하지 않습니다.
+
+노트는 `title`, `content_markdown`, 선택적인 `topic_id`를 가집니다. 노트 화면에서 문제를 만들면 `source_note_id`로 출처를 연결하며, 연결은 문제 생성 화면에서 해제할 수 있습니다. 출처 노트를 삭제해도 문제는 유지됩니다. 랜덤 학습 중에는 답안을 모두 제출하기 전까지 노트를 노출하지 않고, 일괄 채점 화면에서 필요한 노트만 펼쳐 볼 수 있습니다.
 
 ### 문제 유형
 
@@ -236,10 +243,10 @@ docker compose down -v
 
 ```text
 app/
-├── api/routes/       # 카드·주제·문제 API
+├── api/routes/       # 카드·주제·문제·노트 API
 ├── core/config.py    # 환경변수 설정
 ├── db/               # SQLAlchemy Base와 세션
-├── models/           # Card·Topic·Problem DB 모델
+├── models/           # Card·Topic·Problem·Note DB 모델
 ├── schemas/          # 요청·응답 검증 모델
 └── main.py           # FastAPI 애플리케이션
 alembic/              # PostgreSQL 스키마 마이그레이션
