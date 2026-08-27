@@ -1,0 +1,87 @@
+# Problem Bank Ontology
+
+문제은행의 학습 지식을 RDF/OWL로 표현하는 온톨로지입니다. 운영 데이터는 PostgreSQL에 유지하고, 이 디렉터리는 개념과 의미 관계 및 검증 규칙을 관리합니다.
+
+## 파일
+
+- `problem-bank.ttl`: 클래스, 관계, 문제 유형과 추론 가능한 속성을 정의한 OWL 온톨로지
+- `shapes.ttl`: 데이터 구조와 카드 경계를 검증하는 SHACL 규칙
+- `examples/information-processing-engineer.ttl`: 정보처리기사 데이터베이스 영역 예제 그래프
+
+## 핵심 모델
+
+```text
+학습 카드 ──주제를 포함함──> 주제 ──개념을 분류함──> 개념
+    │                                              │
+    ├──문제──평가함────────────────────────────────┤
+    └──노트──설명함────────────────────────────────┘
+
+개념 ──선수 개념임──> 개념
+개념 ──상위 개념──> 개념
+개념 ──혼동하기 쉬움──> 개념
+문제 ──노트에서 파생됨──> 노트
+오개념 ──개념에 대한 오개념임──> 개념
+```
+
+`Concept`는 특정 카드에 종속시키지 않았습니다. 동일한 개념을 여러 자격증 카드나 학습 영역에서 재사용할 수 있고, `StudyCard usesConcept Concept` 관계로 카드별 지식 범위를 정합니다.
+
+## TTL과 시각화
+
+TTL은 Turtle 문법으로 직렬화한 RDF 텍스트 파일입니다. 파일 자체가 이미지인 것은 아니지만 다음 도구에 불러오면 클래스와 인스턴스 및 관계를 그래프로 볼 수 있습니다.
+
+- Apache Jena Fuseki: 데이터를 적재하고 SPARQL로 그래프를 조회
+- Protégé: `problem-bank.ttl`의 클래스와 객체 속성을 온톨로지 그래프로 탐색
+- RDF 시각화 도구: 예제 TTL을 불러와 노드와 간선을 바로 탐색
+
+Fuseki의 기본 화면은 관리와 SPARQL 조회 용도입니다. 실제 사용자가 보는 지식 지도는 React에서 별도로 구현하고, Fuseki의 조회 결과만 사용합니다.
+
+예제 데이터에서 주요 개념 관계를 조회하는 SPARQL은 다음과 같습니다.
+
+```sparql
+PREFIX pb: <https://belight2.github.io/problem_bank/ontology#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?fromLabel ?relation ?toLabel
+WHERE {
+  VALUES ?relation {
+    pb:prerequisiteOf
+    pb:broaderConcept
+    pb:relatedConcept
+    pb:contrastsWith
+    pb:commonlyConfusedWith
+  }
+
+  ?from ?relation ?to ;
+        skos:prefLabel ?fromLabel .
+  ?to skos:prefLabel ?toLabel .
+}
+ORDER BY ?fromLabel ?relation ?toLabel
+```
+
+## 관계 방향
+
+`prerequisiteOf`는 먼저 알아야 하는 개념에서 이후에 학습할 개념을 향합니다.
+
+```text
+함수 종속성 prerequisiteOf 제2정규형
+제2정규형 prerequisiteOf 제3정규형
+```
+
+이 속성은 `owl:TransitiveProperty`로 선언했습니다. 추론을 활성화하면 함수 종속성이 제3정규형의 간접 선수 개념이라는 사실을 얻을 수 있습니다.
+
+`broaderConcept`는 세부 개념에서 상위 개념을 향합니다.
+
+```text
+제3정규형 broaderConcept 정규화
+```
+
+OWL 선언만 적재해서는 추론 결과가 자동 생성되지 않습니다. Fuseki를 추가할 때 Jena reasoner를 사용하는 dataset 설정을 함께 적용해야 합니다.
+
+## 식별자 규칙
+
+- 온톨로지 namespace: `https://belight2.github.io/problem_bank/ontology#`
+- 데이터 resource namespace: `https://belight2.github.io/problem_bank/resource/`
+- PostgreSQL 엔티티: `pb:externalId`로 기존 정수 ID 연결
+- 개념과 오개념: 영문 소문자와 하이픈으로 된 `dcterms:identifier` 사용
+
+아직 실제 GraphDB 데이터가 없는 단계이므로 namespace는 `0.1.0` 동안 변경할 수 있습니다. 실제 데이터를 생성하기 시작한 뒤에는 기존 URI가 깨지지 않도록 유지합니다.

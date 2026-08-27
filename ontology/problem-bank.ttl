@@ -1,0 +1,373 @@
+@prefix pb: <https://belight2.github.io/problem_bank/ontology#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://belight2.github.io/problem_bank/ontology>
+    a owl:Ontology ;
+    dcterms:title "Problem Bank 학습 온톨로지"@ko ;
+    dcterms:description
+        "카드, 주제, 개념, 문제, 노트와 오개념을 연결해 학습 지식 구조와 추론 규칙을 표현한다."@ko ;
+    dcterms:creator "belight2" ;
+    dcterms:created "2026-08-27"^^xsd:date ;
+    dcterms:modified "2026-08-27"^^xsd:date ;
+    owl:versionIRI <https://belight2.github.io/problem_bank/ontology/0.1.0> ;
+    owl:versionInfo "0.1.0" .
+
+#################################################################
+# Classes
+#################################################################
+
+pb:KnowledgeEntity
+    a owl:Class ;
+    rdfs:label "지식 엔티티"@ko ;
+    rdfs:comment "문제은행의 의미 그래프에 포함되는 모든 엔티티의 상위 클래스다."@ko .
+
+pb:StudyCard
+    a owl:Class ;
+    rdfs:subClassOf pb:KnowledgeEntity ;
+    rdfs:label "학습 카드"@ko ;
+    rdfs:comment "정보처리기사처럼 하나의 학습 영역을 묶는 최상위 컨테이너다."@ko .
+
+pb:CardScopedEntity
+    a owl:Class ;
+    rdfs:subClassOf pb:KnowledgeEntity ;
+    rdfs:label "카드 소속 엔티티"@ko ;
+    rdfs:comment "하나의 학습 카드 안에서 관리되는 엔티티다."@ko .
+
+pb:Topic
+    a owl:Class ;
+    rdfs:subClassOf pb:CardScopedEntity ;
+    rdfs:label "주제"@ko ;
+    rdfs:comment "카드 안에서 문제와 노트를 분류하고 개념을 조직하는 단위다."@ko .
+
+pb:Concept
+    a owl:Class ;
+    rdfs:subClassOf pb:KnowledgeEntity, skos:Concept ;
+    rdfs:label "개념"@ko ;
+    rdfs:comment "여러 카드와 주제에서 재사용할 수 있는 지식의 의미 단위다."@ko .
+
+pb:LearningResource
+    a owl:Class ;
+    rdfs:subClassOf pb:CardScopedEntity ;
+    rdfs:label "학습 자료"@ko ;
+    rdfs:comment "개념을 설명하거나 평가하기 위해 사용하는 자료의 상위 클래스다."@ko .
+
+pb:Problem
+    a owl:Class ;
+    rdfs:subClassOf pb:LearningResource ;
+    rdfs:label "문제"@ko ;
+    rdfs:comment "하나 이상의 개념을 평가하는 문제은행의 문제다."@ko .
+
+pb:Note
+    a owl:Class ;
+    rdfs:subClassOf pb:LearningResource ;
+    rdfs:label "노트"@ko ;
+    rdfs:comment "하나 이상의 개념을 설명하거나 정리하는 Markdown 노트다."@ko .
+
+pb:Misconception
+    a owl:Class ;
+    rdfs:subClassOf pb:KnowledgeEntity ;
+    rdfs:label "오개념"@ko ;
+    rdfs:comment "특정 개념을 학습할 때 반복해서 발생할 수 있는 잘못된 이해다."@ko .
+
+pb:ProblemType
+    a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "문제 유형"@ko .
+
+pb:GradingMode
+    a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "채점 방식"@ko .
+
+[]
+    a owl:AllDisjointClasses ;
+    owl:members (
+        pb:StudyCard
+        pb:Topic
+        pb:Concept
+        pb:Problem
+        pb:Note
+        pb:Misconception
+    ) .
+
+#################################################################
+# Card and topic relations
+#################################################################
+
+pb:inCard
+    a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:domain pb:CardScopedEntity ;
+    rdfs:range pb:StudyCard ;
+    owl:inverseOf pb:hasResource ;
+    rdfs:label "카드에 속함"@ko .
+
+pb:hasResource
+    a owl:ObjectProperty ;
+    rdfs:domain pb:StudyCard ;
+    rdfs:range pb:CardScopedEntity ;
+    rdfs:label "카드 자료를 가짐"@ko .
+
+pb:containsTopic
+    a owl:ObjectProperty ;
+    rdfs:subPropertyOf pb:hasResource ;
+    rdfs:domain pb:StudyCard ;
+    rdfs:range pb:Topic ;
+    owl:inverseOf pb:topicOfCard ;
+    rdfs:label "주제를 포함함"@ko .
+
+pb:topicOfCard
+    a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:subPropertyOf pb:inCard ;
+    rdfs:domain pb:Topic ;
+    rdfs:range pb:StudyCard ;
+    rdfs:label "카드의 주제임"@ko .
+
+pb:usesConcept
+    a owl:ObjectProperty ;
+    rdfs:domain pb:StudyCard ;
+    rdfs:range pb:Concept ;
+    owl:inverseOf pb:usedByCard ;
+    rdfs:label "개념을 사용함"@ko .
+
+pb:usedByCard
+    a owl:ObjectProperty ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:StudyCard ;
+    rdfs:label "카드에서 사용됨"@ko .
+
+pb:organizesConcept
+    a owl:ObjectProperty ;
+    rdfs:domain pb:Topic ;
+    rdfs:range pb:Concept ;
+    owl:inverseOf pb:organizedUnderTopic ;
+    rdfs:label "개념을 분류함"@ko .
+
+pb:organizedUnderTopic
+    a owl:ObjectProperty ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Topic ;
+    rdfs:label "주제 아래 분류됨"@ko .
+
+pb:classifiedUnder
+    a owl:ObjectProperty ;
+    rdfs:domain pb:LearningResource ;
+    rdfs:range pb:Topic ;
+    owl:inverseOf pb:hasClassifiedResource ;
+    rdfs:label "주제로 분류됨"@ko .
+
+pb:hasClassifiedResource
+    a owl:ObjectProperty ;
+    rdfs:domain pb:Topic ;
+    rdfs:range pb:LearningResource ;
+    rdfs:label "분류된 학습 자료를 가짐"@ko .
+
+#################################################################
+# Concept relations
+#################################################################
+
+pb:broaderConcept
+    a owl:ObjectProperty ;
+    rdfs:subPropertyOf skos:broader ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Concept ;
+    owl:inverseOf pb:narrowerConcept ;
+    rdfs:label "상위 개념"@ko .
+
+pb:narrowerConcept
+    a owl:ObjectProperty ;
+    rdfs:subPropertyOf skos:narrower ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Concept ;
+    rdfs:label "하위 개념"@ko .
+
+pb:prerequisiteOf
+    a owl:ObjectProperty, owl:TransitiveProperty ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Concept ;
+    owl:inverseOf pb:hasPrerequisite ;
+    rdfs:label "선수 개념임"@ko ;
+    rdfs:comment "주어 개념을 먼저 이해해야 목적어 개념을 학습할 수 있음을 나타낸다."@ko .
+
+pb:hasPrerequisite
+    a owl:ObjectProperty, owl:TransitiveProperty ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Concept ;
+    rdfs:label "선수 개념을 가짐"@ko .
+
+pb:relatedConcept
+    a owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:subPropertyOf skos:related ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Concept ;
+    rdfs:label "관련 개념"@ko .
+
+pb:contrastsWith
+    a owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Concept ;
+    rdfs:label "비교되는 개념"@ko .
+
+pb:commonlyConfusedWith
+    a owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Concept ;
+    rdfs:label "혼동하기 쉬운 개념"@ko .
+
+#################################################################
+# Problem, note, and misconception relations
+#################################################################
+
+pb:assesses
+    a owl:ObjectProperty ;
+    rdfs:domain pb:Problem ;
+    rdfs:range pb:Concept ;
+    owl:inverseOf pb:assessedBy ;
+    rdfs:label "개념을 평가함"@ko .
+
+pb:assessedBy
+    a owl:ObjectProperty ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Problem ;
+    rdfs:label "문제에서 평가됨"@ko .
+
+pb:primaryConcept
+    a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:subPropertyOf pb:assesses ;
+    rdfs:domain pb:Problem ;
+    rdfs:range pb:Concept ;
+    rdfs:label "핵심 개념"@ko .
+
+pb:supportingConcept
+    a owl:ObjectProperty ;
+    rdfs:subPropertyOf pb:assesses ;
+    rdfs:domain pb:Problem ;
+    rdfs:range pb:Concept ;
+    rdfs:label "보조 개념"@ko .
+
+pb:explains
+    a owl:ObjectProperty ;
+    rdfs:domain pb:Note ;
+    rdfs:range pb:Concept ;
+    owl:inverseOf pb:explainedBy ;
+    rdfs:label "개념을 설명함"@ko .
+
+pb:explainedBy
+    a owl:ObjectProperty ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Note ;
+    rdfs:label "노트에서 설명됨"@ko .
+
+pb:derivedFrom
+    a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:subPropertyOf dcterms:source ;
+    rdfs:domain pb:Problem ;
+    rdfs:range pb:Note ;
+    owl:inverseOf pb:hasDerivedProblem ;
+    rdfs:label "노트에서 파생됨"@ko .
+
+pb:hasDerivedProblem
+    a owl:ObjectProperty ;
+    rdfs:domain pb:Note ;
+    rdfs:range pb:Problem ;
+    rdfs:label "파생 문제를 가짐"@ko .
+
+pb:misconceptionAbout
+    a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:domain pb:Misconception ;
+    rdfs:range pb:Concept ;
+    owl:inverseOf pb:hasMisconception ;
+    rdfs:label "개념에 대한 오개념임"@ko .
+
+pb:hasMisconception
+    a owl:ObjectProperty ;
+    rdfs:domain pb:Concept ;
+    rdfs:range pb:Misconception ;
+    rdfs:label "오개념을 가짐"@ko .
+
+pb:addressesMisconception
+    a owl:ObjectProperty ;
+    rdfs:domain pb:LearningResource ;
+    rdfs:range pb:Misconception ;
+    rdfs:label "오개념을 다룸"@ko .
+
+pb:correctsMisconception
+    a owl:ObjectProperty ;
+    rdfs:subPropertyOf pb:addressesMisconception ;
+    rdfs:domain pb:Note ;
+    rdfs:range pb:Misconception ;
+    rdfs:label "오개념을 교정함"@ko .
+
+#################################################################
+# Problem type and grading mode
+#################################################################
+
+pb:hasProblemType
+    a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:domain pb:Problem ;
+    rdfs:range pb:ProblemType ;
+    rdfs:label "문제 유형"@ko .
+
+pb:usesGradingMode
+    a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:domain pb:ProblemType ;
+    rdfs:range pb:GradingMode ;
+    rdfs:label "채점 방식을 사용함"@ko .
+
+pb:AutomaticGrading
+    a owl:NamedIndividual, pb:GradingMode ;
+    rdfs:label "자동 채점"@ko .
+
+pb:ManualGrading
+    a owl:NamedIndividual, pb:GradingMode ;
+    rdfs:label "사용자 직접 채점"@ko .
+
+pb:ShortAnswerProblemType
+    a owl:NamedIndividual, pb:ProblemType ;
+    skos:prefLabel "단답형"@ko ;
+    pb:problemTypeCode "short_answer" ;
+    pb:usesGradingMode pb:ManualGrading .
+
+pb:EssayProblemType
+    a owl:NamedIndividual, pb:ProblemType ;
+    skos:prefLabel "주관식"@ko ;
+    pb:problemTypeCode "essay" ;
+    pb:usesGradingMode pb:ManualGrading .
+
+pb:MultipleChoiceProblemType
+    a owl:NamedIndividual, pb:ProblemType ;
+    skos:prefLabel "객관식"@ko ;
+    pb:problemTypeCode "multiple_choice" ;
+    pb:usesGradingMode pb:AutomaticGrading .
+
+pb:TrueFalseProblemType
+    a owl:NamedIndividual, pb:ProblemType ;
+    skos:prefLabel "O/X"@ko ;
+    pb:problemTypeCode "true_false" ;
+    pb:usesGradingMode pb:AutomaticGrading .
+
+pb:FillBlankProblemType
+    a owl:NamedIndividual, pb:ProblemType ;
+    skos:prefLabel "빈칸 추론"@ko ;
+    pb:problemTypeCode "fill_blank" ;
+    pb:usesGradingMode pb:ManualGrading .
+
+#################################################################
+# Data properties
+#################################################################
+
+pb:externalId
+    a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:range xsd:positiveInteger ;
+    rdfs:label "관계형 DB 식별자"@ko ;
+    rdfs:comment "PostgreSQL 엔티티와 지식 그래프 리소스를 연결하는 식별자다."@ko .
+
+pb:problemTypeCode
+    a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:domain pb:ProblemType ;
+    rdfs:range xsd:string ;
+    rdfs:label "문제 유형 코드"@ko .

@@ -1,0 +1,287 @@
+@prefix pb: <https://belight2.github.io/problem_bank/ontology#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+pb:StudyCardShape
+    a sh:NodeShape ;
+    sh:targetClass pb:StudyCard ;
+    sh:property [
+        sh:path pb:externalId ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:positiveInteger ;
+        sh:message "학습 카드는 PostgreSQL의 양의 정수 ID를 하나 가져야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:uniqueLang true ;
+        sh:nodeKind sh:Literal ;
+        sh:message "학습 카드에는 표시 이름이 필요합니다."@ko
+    ] .
+pb:TopicShape
+    a sh:NodeShape ;
+    sh:targetClass pb:Topic ;
+    sh:property [
+        sh:path pb:externalId ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:positiveInteger ;
+        sh:message "주제는 PostgreSQL의 양의 정수 ID를 하나 가져야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:uniqueLang true ;
+        sh:nodeKind sh:Literal ;
+        sh:message "주제에는 표시 이름이 필요합니다."@ko
+    ] ;
+    sh:property [
+        sh:path pb:inCard ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pb:StudyCard ;
+        sh:message "주제는 정확히 하나의 학습 카드에 속해야 합니다."@ko
+    ] .
+
+pb:ConceptShape
+    a sh:NodeShape ;
+    sh:targetClass pb:Concept ;
+    sh:property [
+        sh:path dcterms:identifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z0-9]+(?:-[a-z0-9]+)*$" ;
+        sh:message "개념 식별자는 소문자 영문·숫자·하이픈으로 작성해야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path skos:prefLabel ;
+        sh:minCount 1 ;
+        sh:uniqueLang true ;
+        sh:nodeKind sh:Literal ;
+        sh:message "개념에는 언어별 대표 이름이 필요합니다."@ko
+    ] ;
+    sh:property [
+        sh:path pb:broaderConcept ;
+        sh:class pb:Concept
+    ] ;
+    sh:property [
+        sh:path pb:prerequisiteOf ;
+        sh:class pb:Concept
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "선수 개념 관계는 자기 자신으로 되돌아오는 순환을 만들 수 없습니다."@ko ;
+        sh:select """
+            PREFIX pb: <https://belight2.github.io/problem_bank/ontology#>
+            SELECT $this
+            WHERE {
+                $this pb:prerequisiteOf+ $this .
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "상위 개념 관계는 자기 자신으로 되돌아오는 순환을 만들 수 없습니다."@ko ;
+        sh:select """
+            PREFIX pb: <https://belight2.github.io/problem_bank/ontology#>
+            SELECT $this
+            WHERE {
+                $this pb:broaderConcept+ $this .
+            }
+        """
+    ] .
+
+pb:ProblemShape
+    a sh:NodeShape ;
+    sh:targetClass pb:Problem ;
+    sh:property [
+        sh:path pb:externalId ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:positiveInteger ;
+        sh:message "문제는 PostgreSQL의 양의 정수 ID를 하나 가져야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path pb:inCard ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pb:StudyCard ;
+        sh:message "문제는 정확히 하나의 학습 카드에 속해야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path pb:classifiedUnder ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pb:Topic ;
+        sh:message "문제는 정확히 하나의 주제로 분류되어야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path pb:hasProblemType ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pb:ProblemType ;
+        sh:message "문제는 지원하는 문제 유형을 하나 가져야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path pb:primaryConcept ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pb:Concept ;
+        sh:message "문제는 핵심 개념을 정확히 하나 가져야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path pb:supportingConcept ;
+        sh:class pb:Concept
+    ] ;
+    sh:property [
+        sh:path pb:derivedFrom ;
+        sh:maxCount 1 ;
+        sh:class pb:Note
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "문제와 문제의 주제는 같은 학습 카드에 속해야 합니다."@ko ;
+        sh:select """
+            PREFIX pb: <https://belight2.github.io/problem_bank/ontology#>
+            SELECT $this
+            WHERE {
+                $this pb:inCard ?card ;
+                      pb:classifiedUnder ?topic .
+                FILTER NOT EXISTS { ?topic pb:inCard ?card }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "문제에서 평가하는 개념은 해당 카드가 사용하는 개념이어야 합니다."@ko ;
+        sh:select """
+            PREFIX pb: <https://belight2.github.io/problem_bank/ontology#>
+            SELECT $this
+            WHERE {
+                $this pb:inCard ?card ;
+                      (pb:primaryConcept|pb:supportingConcept) ?concept .
+                FILTER NOT EXISTS { ?card pb:usesConcept ?concept }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "파생 문제와 출처 노트는 같은 학습 카드에 속해야 합니다."@ko ;
+        sh:select """
+            PREFIX pb: <https://belight2.github.io/problem_bank/ontology#>
+            SELECT $this
+            WHERE {
+                $this pb:inCard ?card ;
+                      pb:derivedFrom ?note .
+                FILTER NOT EXISTS { ?note pb:inCard ?card }
+            }
+        """
+    ] .
+
+pb:NoteShape
+    a sh:NodeShape ;
+    sh:targetClass pb:Note ;
+    sh:property [
+        sh:path pb:externalId ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:positiveInteger ;
+        sh:message "노트는 PostgreSQL의 양의 정수 ID를 하나 가져야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path pb:inCard ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pb:StudyCard ;
+        sh:message "노트는 정확히 하나의 학습 카드에 속해야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path pb:classifiedUnder ;
+        sh:maxCount 1 ;
+        sh:class pb:Topic
+    ] ;
+    sh:property [
+        sh:path pb:explains ;
+        sh:class pb:Concept
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "노트와 노트의 주제는 같은 학습 카드에 속해야 합니다."@ko ;
+        sh:select """
+            PREFIX pb: <https://belight2.github.io/problem_bank/ontology#>
+            SELECT $this
+            WHERE {
+                $this pb:inCard ?card ;
+                      pb:classifiedUnder ?topic .
+                FILTER NOT EXISTS { ?topic pb:inCard ?card }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "노트에서 설명하는 개념은 해당 카드가 사용하는 개념이어야 합니다."@ko ;
+        sh:select """
+            PREFIX pb: <https://belight2.github.io/problem_bank/ontology#>
+            SELECT $this
+            WHERE {
+                $this pb:inCard ?card ;
+                      pb:explains ?concept .
+                FILTER NOT EXISTS { ?card pb:usesConcept ?concept }
+            }
+        """
+    ] .
+
+pb:MisconceptionShape
+    a sh:NodeShape ;
+    sh:targetClass pb:Misconception ;
+    sh:property [
+        sh:path dcterms:identifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z0-9]+(?:-[a-z0-9]+)*$" ;
+        sh:message "오개념 식별자는 소문자 영문·숫자·하이픈으로 작성해야 합니다."@ko
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:uniqueLang true ;
+        sh:nodeKind sh:Literal ;
+        sh:message "오개념에는 표시 이름이 필요합니다."@ko
+    ] ;
+    sh:property [
+        sh:path pb:misconceptionAbout ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pb:Concept ;
+        sh:message "오개념은 정확히 하나의 개념을 대상으로 해야 합니다."@ko
+    ] .
+
+pb:ProblemTypeShape
+    a sh:NodeShape ;
+    sh:targetClass pb:ProblemType ;
+    sh:property [
+        sh:path pb:problemTypeCode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in (
+            "short_answer"
+            "essay"
+            "multiple_choice"
+            "true_false"
+            "fill_blank"
+        )
+    ] ;
+    sh:property [
+        sh:path pb:usesGradingMode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pb:GradingMode
+    ] .

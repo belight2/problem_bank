@@ -1,0 +1,107 @@
+@prefix pb: <https://belight2.github.io/problem_bank/ontology#> .
+@prefix pbr: <https://belight2.github.io/problem_bank/resource/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+pbr:card-1
+    a pb:StudyCard ;
+    pb:externalId "1"^^xsd:positiveInteger ;
+    rdfs:label "정보처리기사"@ko ;
+    pb:containsTopic pbr:topic-1 ;
+    pb:usesConcept
+        pbr:concept-functional-dependency,
+        pbr:concept-normalization,
+        pbr:concept-second-normal-form,
+        pbr:concept-third-normal-form,
+        pbr:concept-partial-functional-dependency,
+        pbr:concept-full-functional-dependency .
+
+pbr:topic-1
+    a pb:Topic ;
+    pb:externalId "1"^^xsd:positiveInteger ;
+    pb:inCard pbr:card-1 ;
+    rdfs:label "데이터베이스"@ko ;
+    pb:organizesConcept
+        pbr:concept-functional-dependency,
+        pbr:concept-normalization,
+        pbr:concept-second-normal-form,
+        pbr:concept-third-normal-form,
+        pbr:concept-partial-functional-dependency,
+        pbr:concept-full-functional-dependency .
+
+pbr:concept-functional-dependency
+    a pb:Concept ;
+    dcterms:identifier "functional-dependency" ;
+    skos:prefLabel "함수 종속성"@ko ;
+    skos:definition "어떤 속성의 값이 다른 속성의 값을 유일하게 결정하는 관계다."@ko ;
+    pb:prerequisiteOf pbr:concept-second-normal-form ;
+    pb:relatedConcept pbr:concept-normalization .
+
+pbr:concept-normalization
+    a pb:Concept ;
+    dcterms:identifier "normalization" ;
+    skos:prefLabel "정규화"@ko ;
+    skos:definition "데이터 중복과 이상 현상을 줄이기 위해 릴레이션을 분해하는 과정이다."@ko .
+
+pbr:concept-second-normal-form
+    a pb:Concept ;
+    dcterms:identifier "second-normal-form" ;
+    skos:prefLabel "제2정규형"@ko ;
+    skos:altLabel "2NF"@en ;
+    pb:broaderConcept pbr:concept-normalization ;
+    pb:prerequisiteOf pbr:concept-third-normal-form ;
+    pb:commonlyConfusedWith pbr:concept-third-normal-form .
+
+pbr:concept-third-normal-form
+    a pb:Concept ;
+    dcterms:identifier "third-normal-form" ;
+    skos:prefLabel "제3정규형"@ko ;
+    skos:altLabel "3NF"@en ;
+    pb:broaderConcept pbr:concept-normalization .
+
+pbr:concept-partial-functional-dependency
+    a pb:Concept ;
+    dcterms:identifier "partial-functional-dependency" ;
+    skos:prefLabel "부분 함수 종속"@ko ;
+    pb:broaderConcept pbr:concept-functional-dependency ;
+    pb:contrastsWith pbr:concept-full-functional-dependency .
+
+pbr:concept-full-functional-dependency
+    a pb:Concept ;
+    dcterms:identifier "full-functional-dependency" ;
+    skos:prefLabel "완전 함수 종속"@ko ;
+    pb:broaderConcept pbr:concept-functional-dependency ;
+    pb:contrastsWith pbr:concept-partial-functional-dependency .
+
+pbr:note-1
+    a pb:Note ;
+    pb:externalId "1"^^xsd:positiveInteger ;
+    pb:inCard pbr:card-1 ;
+    pb:classifiedUnder pbr:topic-1 ;
+    rdfs:label "정규화와 함수 종속성"@ko ;
+    pb:explains
+        pbr:concept-functional-dependency,
+        pbr:concept-normalization,
+        pbr:concept-second-normal-form,
+        pbr:concept-third-normal-form ;
+    pb:correctsMisconception pbr:misconception-2nf-transitive-dependency .
+
+pbr:problem-1
+    a pb:Problem ;
+    pb:externalId "1"^^xsd:positiveInteger ;
+    pb:inCard pbr:card-1 ;
+    pb:classifiedUnder pbr:topic-1 ;
+    pb:hasProblemType pb:ShortAnswerProblemType ;
+    pb:primaryConcept pbr:concept-third-normal-form ;
+    pb:supportingConcept pbr:concept-second-normal-form ;
+    pb:derivedFrom pbr:note-1 ;
+    pb:addressesMisconception pbr:misconception-2nf-transitive-dependency ;
+    rdfs:label "제3정규형이 제거하는 종속성은 무엇인가?"@ko .
+
+pbr:misconception-2nf-transitive-dependency
+    a pb:Misconception ;
+    dcterms:identifier "second-normal-form-removes-transitive-dependency" ;
+    rdfs:label "제2정규형이 이행적 함수 종속을 제거한다는 오해"@ko ;
+    pb:misconceptionAbout pbr:concept-second-normal-form .

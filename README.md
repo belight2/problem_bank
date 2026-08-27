@@ -17,6 +17,7 @@ React (localhost:5571) → FastAPI (localhost:8899) → PostgreSQL (localhost:25
 - SQLAlchemy 2
 - Alembic
 - PostgreSQL 17
+- RDF/OWL 온톨로지 및 SHACL 검증 규칙
 - Pydantic Settings
 - pytest, Ruff
 - React
@@ -263,4 +264,7 @@ alembic/              # PostgreSQL 스키마 마이그레이션
 tests/                # SQLite 기반 API 테스트
 frontend/             # React·TypeScript 프론트엔드
 docs/                 # 구현 전 검토할 기획 문서
+ontology/             # OWL 온톨로지·SHACL 규칙·예제 RDF 데이터
 ```
+
+온톨로지의 클래스와 관계, TTL 시각화 방법은 [온톨로지 문서](ontology/README.md)에 정리되어 있습니다.
