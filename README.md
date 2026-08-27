@@ -100,7 +100,13 @@ Fuseki에서는 OWL Micro 추론을 적용합니다. SHACL 파일은 조회할 �
 
 동기화 설정은 `.env`의 `FUSEKI_*`와 `GRAPH_SYNC_*` 항목에서 바꿀 수 있습니다. 작업자를 잠시 끄려면 `GRAPH_SYNC_ENABLED=false`로 설정합니다. 문제의 정답·선택지와 노트 본문은 그래프에 보내지 않고, 관계 탐색에 필요한 제목·주제·문제 유형·출제 통계·출처 노트 관계만 저장합니다.
 
-Outbox 도입 전에 이미 PostgreSQL에 있던 데이터는 자동으로 소급 적재되지 않습니다. 기존 데이터 전체를 Fuseki에 다시 구성하는 기능은 별도 작업으로 추가해야 합니다.
+Outbox 도입 전에 이미 PostgreSQL에 있던 데이터는 아래 명령으로 소급 적재 이벤트를 만들 수 있습니다.
+
+```bash
+uv run python -m app.commands.backfill_graph
+```
+
+명령은 카드 → 주제 → 노트 → 문제 순서로 현재 상태를 Outbox에 넣습니다. FastAPI가 실행 중이면 백그라운드 작업자가 이어서 처리하고, 실행 중이 아니라면 다음 FastAPI 시작 때 처리합니다. 같은 명령을 다시 실행해도 RDF 결과가 중복되지 않습니다.
 
 ### 3. Python 패키지 설치
 

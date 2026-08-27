@@ -14,6 +14,7 @@ PREFIXES = f"""\
 PREFIX pb: <{PB_NAMESPACE}>
 PREFIX pbr: <{PBR_NAMESPACE}>
 PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 """
@@ -150,6 +151,41 @@ TRIPLE_BUILDERS: dict[str, Callable[[dict[str, Any]], list[str]]] = {
     GraphAggregateType.NOTE.value: note_triples,
 }
 
+MANAGED_PREDICATES = {
+    GraphAggregateType.CARD.value: (
+        "rdf:type",
+        "pb:externalId",
+        "rdfs:label",
+        "dcterms:description",
+    ),
+    GraphAggregateType.TOPIC.value: (
+        "rdf:type",
+        "pb:externalId",
+        "pb:inCard",
+        "pb:topicOfCard",
+        "rdfs:label",
+    ),
+    GraphAggregateType.PROBLEM.value: (
+        "rdf:type",
+        "pb:externalId",
+        "pb:inCard",
+        "pb:classifiedUnder",
+        "pb:hasProblemType",
+        "rdfs:label",
+        "pb:presentedCount",
+        "pb:correctCount",
+        "pb:incorrectCount",
+        "pb:derivedFrom",
+    ),
+    GraphAggregateType.NOTE.value: (
+        "rdf:type",
+        "pb:externalId",
+        "pb:inCard",
+        "pb:classifiedUnder",
+        "rdfs:label",
+    ),
+}
+
 
 def build_upsert(aggregate_type: str, aggregate_id: int, entity: dict[str, Any]) -> str:
     builder = TRIPLE_BUILDERS.get(aggregate_type)
@@ -161,16 +197,18 @@ def build_upsert(aggregate_type: str, aggregate_id: int, entity: dict[str, Any])
 
     iri = resource_iri(aggregate_type, aggregate_id)
     triples = "\n  ".join(builder(entity))
+    predicates = " ".join(MANAGED_PREDICATES[aggregate_type])
     return f"""\
 {PREFIXES}
 DELETE {{
   <{iri}> ?predicate ?object .
 }}
-INSERT {{
-  {triples}
-}}
 WHERE {{
-  OPTIONAL {{ <{iri}> ?predicate ?object . }}
+  VALUES ?predicate {{ {predicates} }}
+  <{iri}> ?predicate ?object .
+}} ;
+INSERT DATA {{
+  {triples}
 }}
 """
 

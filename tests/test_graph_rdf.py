@@ -1,9 +1,10 @@
 from typing import Any
 
 import pytest
+from rdflib import Graph, Literal, Namespace
 from rdflib.plugins.sparql.parser import parseUpdate
 
-from app.services.graph_rdf import build_graph_update
+from app.services.graph_rdf import PB_NAMESPACE, PBR_NAMESPACE, build_graph_update
 
 
 @pytest.mark.parametrize(
@@ -89,6 +90,44 @@ def test_card_delete_cascades_only_card_scoped_resources() -> None:
     parseUpdate(update)
     assert "?resource pb:inCard" in update
     assert "?resource ?predicate ?object" in update
+
+
+def test_upsert_only_replaces_relationally_managed_predicates() -> None:
+    update = build_graph_update(
+        aggregate_type="problem",
+        aggregate_id="3",
+        event_type="upsert",
+        payload={
+            "schema_version": 1,
+            "entity": {
+                "id": 3,
+                "card_id": 1,
+                "topic_id": 2,
+                "question": "정규화란?",
+                "problem_type": "short_answer",
+                "source_note_id": None,
+                "presented_count": 0,
+                "correct_count": 0,
+                "incorrect_count": 0,
+            },
+        },
+    )
+
+    assert "VALUES ?predicate" in update
+    assert "pb:derivedFrom" in update
+    assert "pb:primaryConcept" not in update
+    assert "pb:supportingConcept" not in update
+
+    graph = Graph()
+    pb = Namespace(PB_NAMESPACE)
+    pbr = Namespace(PBR_NAMESPACE)
+    graph.add((pbr["problem-3"], pb.primaryConcept, pbr["concept-normalization"]))
+    graph.add((pbr["problem-3"], pb.presentedCount, Literal(99)))
+
+    graph.update(update)
+
+    assert (pbr["problem-3"], pb.primaryConcept, pbr["concept-normalization"]) in graph
+    assert (pbr["problem-3"], pb.presentedCount, Literal(99)) not in graph
 
 
 def test_graph_update_rejects_mismatched_payload_id() -> None:
