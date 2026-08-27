@@ -35,6 +35,17 @@ TTL은 Turtle 문법으로 직렬화한 RDF 텍스트 파일입니다. 파일 �
 
 Fuseki의 기본 화면은 관리와 SPARQL 조회 용도입니다. 실제 사용자가 보는 지식 지도는 React에서 별도로 구현하고, Fuseki의 조회 결과만 사용합니다.
 
+프로젝트 루트에서 다음 명령을 직접 실행하면 Fuseki를 시작할 수 있습니다.
+
+```bash
+docker compose up -d fuseki
+```
+
+- Fuseki UI: `http://localhost:3030/#/dataset/problem-bank/query`
+- SPARQL endpoint: `http://localhost:3030/problem-bank/sparql`
+
+`problem-bank.ttl`과 `shapes.ttl`은 시작할 때마다 읽으며, 예제 데이터는 `fuseki-data` 볼륨에 최초 한 번만 적재합니다. dataset에는 OWL Micro 추론기가 적용됩니다. SHACL 규칙은 Fuseki가 쓰기 요청마다 자동 검증하는 구조가 아니며, 현재는 `tests/test_ontology.py`에서 검증합니다.
+
 예제 데이터에서 주요 개념 관계를 조회하는 SPARQL은 다음과 같습니다.
 
 ```sparql
@@ -75,7 +86,7 @@ ORDER BY ?fromLabel ?relation ?toLabel
 제3정규형 broaderConcept 정규화
 ```
 
-OWL 선언만 적재해서는 추론 결과가 자동 생성되지 않습니다. Fuseki를 추가할 때 Jena reasoner를 사용하는 dataset 설정을 함께 적용해야 합니다.
+Fuseki dataset은 Jena OWL Micro Rule Reasoner를 사용하므로 `owl:TransitiveProperty`, 역속성, 대칭 속성 등 기본 OWL 추론 결과를 SPARQL에서 조회할 수 있습니다.
 
 ## 식별자 규칙
 

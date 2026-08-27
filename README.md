@@ -1,9 +1,10 @@
 # Problem Bank
 
-React·TypeScript 프론트엔드와 FastAPI 백엔드로 구성한 개인용 문제 은행입니다. PostgreSQL만 Docker Compose로 실행하고 애플리케이션은 로컬 환경에서 실행합니다.
+React·TypeScript 프론트엔드와 FastAPI 백엔드로 구성한 개인용 문제 은행입니다. PostgreSQL과 Apache Jena Fuseki는 Docker Compose로 실행하고 애플리케이션은 로컬 환경에서 실행합니다.
 
 ```text
 React (localhost:5571) → FastAPI (localhost:8899) → PostgreSQL (localhost:25431)
+브라우저 ───────────────────────────────────────→ Fuseki (localhost:3030)
 ```
 
 처음 실행할 때 로그인 없이 사용할 단일 프로필을 등록하며, 카드와 학습 기록은 모두 이 프로필에 저장됩니다. 홈 대시보드에서는 하루 학습 목표, 전체 정답률, 미해결 오답, 완료한 학습 수와 취약 주제를 확인할 수 있습니다.
@@ -17,6 +18,7 @@ React (localhost:5571) → FastAPI (localhost:8899) → PostgreSQL (localhost:25
 - SQLAlchemy 2
 - Alembic
 - PostgreSQL 17
+- Apache Jena Fuseki 6.2
 - RDF/OWL 온톨로지 및 SHACL 검증 규칙
 - Pydantic Settings
 - pytest, Ruff
@@ -27,13 +29,13 @@ React (localhost:5571) → FastAPI (localhost:8899) → PostgreSQL (localhost:25
 
 ## 빠른 시작
 
-Docker Desktop을 직접 실행한 뒤, 프로젝트 루트에서 백엔드와 DB를 실행합니다.
+Docker Desktop을 직접 실행한 뒤, 프로젝트 루트에서 백엔드와 데이터 서비스를 실행합니다.
 
 터미널 1:
 
 ```bash
 cp .env.example .env
-docker compose up -d db
+docker compose up -d db fuseki
 
 uv sync --extra dev
 uv run alembic upgrade head
@@ -57,6 +59,8 @@ npm run dev
 - API: `http://localhost:8899`
 - Swagger UI: `http://localhost:8899/docs`
 - PostgreSQL: `localhost:25431`
+- Fuseki UI: `http://localhost:3030/#/dataset/problem-bank/query`
+- SPARQL endpoint: `http://localhost:3030/problem-bank/sparql`
 
 아래부터는 각 단계를 나눠 설명합니다.
 
@@ -68,14 +72,29 @@ cp .env.example .env
 
 기본값을 그대로 사용한다면 `.env`를 수정할 필요가 없습니다.
 
-### 2. PostgreSQL 실행
+### 2. PostgreSQL과 Fuseki 실행
 
 Docker Desktop을 직접 실행한 다음 필요한 경우 아래 명령을 직접 실행합니다.
 
 ```bash
-docker compose up -d db
+docker compose up -d db fuseki
 docker compose ps
 ```
+
+처음 실행할 때는 Apache Jena Fuseki 6.2.0 공식 배포본을 사용하는 로컬 이미지를 빌드합니다. Fuseki는 `127.0.0.1`에만 공개되며 다음 주소에서 온톨로지를 조회할 수 있습니다.
+
+- 관리·SPARQL UI: `http://localhost:3030/#/dataset/problem-bank/query`
+- SPARQL Query: `http://localhost:3030/problem-bank/sparql`
+- SPARQL Update: `http://localhost:3030/problem-bank/update`
+- Graph Store: `http://localhost:3030/problem-bank/data`
+
+`ontology/problem-bank.ttl`과 `ontology/shapes.ttl`은 컨테이너 시작 시 직접 읽습니다. 정보처리기사 예제 그래프는 `fuseki-data` 볼륨에 최초 한 번만 적재하며, 저장된 RDF 데이터는 컨테이너를 다시 만들어도 유지됩니다. 온톨로지 또는 SHACL 파일을 수정했다면 아래 명령으로 Fuseki만 다시 시작합니다.
+
+```bash
+docker compose restart fuseki
+```
+
+Fuseki에서는 OWL Micro 추론을 적용합니다. SHACL 파일은 조회할 수 있도록 함께 불러오지만 요청 데이터에 대한 SHACL 검증을 자동으로 강제하지는 않습니다. 저장소의 온톨로지 테스트가 SHACL 규칙을 검증합니다.
 
 ### 3. Python 패키지 설치
 
@@ -236,19 +255,35 @@ PostgreSQL에 직접 접속하려면 다음 명령을 사용합니다.
 docker compose exec db psql -U problem_bank -d problem_bank
 ```
 
+## Fuseki 기본 설정
+
+| 항목 | 기본값 |
+| --- | --- |
+| Host | `localhost` |
+| Port | `3030` |
+| Dataset | `problem-bank` |
+| 저장소 | Docker volume `fuseki-data` |
+| 추론기 | Jena OWL Micro Rule Reasoner |
+
+Fuseki 로그는 다음 명령으로 확인합니다.
+
+```bash
+docker compose logs -f fuseki
+```
+
 ## 종료와 데이터 초기화
 
 ```bash
 docker compose down
 ```
 
-위 명령은 컨테이너만 제거하며 데이터는 Docker 볼륨에 유지합니다. 데이터까지 삭제하려면 다음 명령을 직접 실행해야 합니다.
+위 명령은 컨테이너만 제거하며 PostgreSQL과 Fuseki 데이터는 Docker 볼륨에 유지합니다. 데이터까지 삭제하려면 다음 명령을 직접 실행해야 합니다.
 
 ```bash
 docker compose down -v
 ```
 
-`-v` 옵션은 저장된 PostgreSQL 데이터를 삭제하므로 주의하세요.
+`-v` 옵션은 저장된 PostgreSQL 데이터와 Fuseki RDF 데이터를 모두 삭제하므로 주의하세요.
 
 ## 프로젝트 구조
 
@@ -264,6 +299,7 @@ alembic/              # PostgreSQL 스키마 마이그레이션
 tests/                # SQLite 기반 API 테스트
 frontend/             # React·TypeScript 프론트엔드
 docs/                 # 구현 전 검토할 기획 문서
+docker/fuseki/        # Fuseki 이미지·dataset·자동 적재 설정
 ontology/             # OWL 온톨로지·SHACL 규칙·예제 RDF 데이터
 ```
 

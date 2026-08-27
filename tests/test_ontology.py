@@ -8,6 +8,7 @@ ONTOLOGY_DIR = Path(__file__).parents[1] / "ontology"
 ONTOLOGY_PATH = ONTOLOGY_DIR / "problem-bank.ttl"
 SHAPES_PATH = ONTOLOGY_DIR / "shapes.ttl"
 EXAMPLE_PATH = ONTOLOGY_DIR / "examples" / "information-processing-engineer.ttl"
+FUSEKI_CONFIG_PATH = Path(__file__).parents[1] / "docker" / "fuseki" / "config.ttl"
 
 PB = Namespace("https://belight2.github.io/problem_bank/ontology#")
 PBR = Namespace("https://belight2.github.io/problem_bank/resource/")
@@ -38,6 +39,10 @@ def validate_graph(graph: Graph) -> tuple[bool, Graph, str]:
 def test_all_ontology_turtle_files_are_valid() -> None:
     for path in ONTOLOGY_DIR.rglob("*.ttl"):
         Graph().parse(path, format="turtle")
+
+
+def test_fuseki_assembler_config_is_valid_turtle() -> None:
+    Graph().parse(FUSEKI_CONFIG_PATH, format="turtle")
 
 
 def test_information_processing_example_conforms_to_shapes() -> None:

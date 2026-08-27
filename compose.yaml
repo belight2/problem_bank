@@ -18,5 +18,32 @@ services:
       retries: 10
     restart: unless-stopped
 
+  fuseki:
+    build:
+      context: .
+      dockerfile: docker/fuseki/Dockerfile
+      args:
+        JENA_VERSION: "6.2.0"
+    environment:
+      JVM_ARGS: ${FUSEKI_JVM_ARGS:--Xms256m -Xmx1g}
+    ports:
+      - "127.0.0.1:${FUSEKI_PORT:-3030}:3030"
+    volumes:
+      - fuseki-data:/fuseki-base/databases
+      - ./ontology:/ontology:ro
+      - ./docker/fuseki/config.ttl:/fuseki-config/config.ttl:ro
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -fsS
+        - http://localhost:3030/problem-bank/sparql?query=ASK%7B%7D
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
 volumes:
   postgres-data:
+  fuseki-data:

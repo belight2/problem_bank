@@ -1,0 +1,69 @@
+@prefix : <#> .
+@prefix fuseki: <http://jena.apache.org/fuseki#> .
+@prefix ja: <http://jena.hpl.hp.com/2005/11/Assembler#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix tdb2: <http://jena.apache.org/2016/tdb#> .
+
+[]
+    a fuseki:Server ;
+    fuseki:services ( :problemBankService ) .
+
+:problemBankService
+    a fuseki:Service ;
+    rdfs:label "Problem Bank Ontology" ;
+    fuseki:name "problem-bank" ;
+    fuseki:endpoint [
+        fuseki:operation fuseki:query ;
+        fuseki:name "sparql"
+    ] ;
+    fuseki:endpoint [
+        fuseki:operation fuseki:query ;
+        fuseki:name "query"
+    ] ;
+    fuseki:endpoint [
+        fuseki:operation fuseki:update ;
+        fuseki:name "update"
+    ] ;
+    fuseki:endpoint [
+        fuseki:operation fuseki:upload ;
+        fuseki:name "upload"
+    ] ;
+    fuseki:endpoint [
+        fuseki:operation fuseki:gsp_r ;
+        fuseki:name "get"
+    ] ;
+    fuseki:endpoint [
+        fuseki:operation fuseki:gsp_rw ;
+        fuseki:name "data"
+    ] ;
+    fuseki:dataset :problemBankDataset .
+
+:problemBankDataset
+    a ja:RDFDataset ;
+    ja:defaultGraph :inferenceModel .
+
+:inferenceModel
+    a ja:InfModel ;
+    ja:baseModel :problemBankGraph ;
+    ja:reasoner [
+        ja:reasonerURL <http://jena.hpl.hp.com/2003/OWLMicroFBRuleReasoner> ;
+        ja:schema :schemaModel
+    ] .
+
+:schemaModel
+    a ja:MemoryModel ;
+    ja:content [
+        ja:externalContent <file:/ontology/problem-bank.ttl>
+    ] ;
+    ja:content [
+        ja:externalContent <file:/ontology/shapes.ttl>
+    ] .
+
+:problemBankGraph
+    a tdb2:GraphTDB2 ;
+    tdb2:dataset :tdbDataset .
+
+:tdbDataset
+    a tdb2:DatasetTDB ;
+    tdb2:location "/fuseki-base/databases/problem-bank" .
