@@ -2,6 +2,9 @@ from app.services.fuseki import FusekiClient
 
 
 class FakeResponse:
+    def __init__(self, body: bytes = b"") -> None:
+        self.body = body
+
     def __enter__(self):
         return self
 
@@ -9,7 +12,7 @@ class FakeResponse:
         return None
 
     def read(self) -> bytes:
-        return b""
+        return self.body
 
 
 def test_fuseki_client_posts_sparql_update(monkeypatch) -> None:
@@ -35,3 +38,30 @@ def test_fuseki_client_posts_sparql_update(monkeypatch) -> None:
     assert request.data == b"INSERT DATA { <urn:a> <urn:b> <urn:c> }"
     assert request.headers["Content-type"] == "application/sparql-update; charset=utf-8"
     assert captured["timeout"] == 3
+
+
+def test_fuseki_client_posts_sparql_query_and_parses_json(monkeypatch) -> None:
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        return FakeResponse(b'{"results":{"bindings":[]}}')
+
+    monkeypatch.setattr("app.services.fuseki.urlopen", fake_urlopen)
+    client = FusekiClient(
+        "http://localhost:3030/",
+        "problem bank",
+        timeout_seconds=4,
+    )
+
+    result = client.query("SELECT * WHERE { ?s ?p ?o }")
+
+    request = captured["request"]
+    assert request.full_url == "http://localhost:3030/problem%20bank/sparql"
+    assert request.method == "POST"
+    assert request.data == b"SELECT * WHERE { ?s ?p ?o }"
+    assert request.headers["Accept"] == "application/sparql-results+json"
+    assert request.headers["Content-type"] == "application/sparql-query; charset=utf-8"
+    assert captured["timeout"] == 4
+    assert result == {"results": {"bindings": []}}
