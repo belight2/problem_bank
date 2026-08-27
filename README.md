@@ -108,6 +108,14 @@ uv run python -m app.commands.backfill_graph
 
 명령은 카드 → 주제 → 노트 → 문제 순서로 현재 상태를 Outbox에 넣습니다. FastAPI가 실행 중이면 백그라운드 작업자가 이어서 처리하고, 실행 중이 아니라면 다음 FastAPI 시작 때 처리합니다. 같은 명령을 다시 실행해도 RDF 결과가 중복되지 않습니다.
 
+동기화 상태와 실패 이벤트는 API에서 확인할 수 있습니다.
+
+- `GET /graph-sync/status`: 상태별 이벤트 수와 최근 처리 시각
+- `GET /graph-sync/events/failed`: 실패 이벤트 목록
+- `POST /graph-sync/events/{event_id}/retry`: 최신 PostgreSQL 상태로 재처리 이벤트 생성
+
+재처리할 때 실패했던 payload를 그대로 다시 사용하지 않습니다. 현재 엔티티가 있으면 최신 상태의 `upsert`, 이미 삭제되었다면 `delete` 이벤트를 새로 만들고 기존 실패 이벤트는 `superseded` 상태로 보존합니다.
+
 ### 3. Python 패키지 설치
 
 `uv` 사용:

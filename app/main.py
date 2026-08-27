@@ -8,6 +8,7 @@ from sqlalchemy import text
 from app.api.dependencies import DatabaseSession
 from app.api.routes.cards import router as cards_router
 from app.api.routes.dashboard import router as dashboard_router
+from app.api.routes.graph_sync import router as graph_sync_router
 from app.api.routes.notes import router as notes_router
 from app.api.routes.problems import router as problems_router
 from app.api.routes.profile import router as profile_router
@@ -38,6 +39,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title=get_settings().app_name, lifespan=lifespan)
 app.include_router(profile_router)
 app.include_router(dashboard_router)
+app.include_router(graph_sync_router)
 app.include_router(cards_router)
 app.include_router(notes_router)
 app.include_router(topics_router)

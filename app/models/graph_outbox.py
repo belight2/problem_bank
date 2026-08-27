@@ -25,6 +25,7 @@ class GraphOutboxStatus(StrEnum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    SUPERSEDED = "superseded"
 
 
 class GraphOutboxEvent(Base):
@@ -35,7 +36,7 @@ class GraphOutboxEvent(Base):
             name="ck_graph_outbox_event_type",
         ),
         CheckConstraint(
-            "status IN ('pending', 'processing', 'completed', 'failed')",
+            "status IN ('pending', 'processing', 'completed', 'failed', 'superseded')",
             name="ck_graph_outbox_status",
         ),
         CheckConstraint(
