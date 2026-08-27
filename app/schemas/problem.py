@@ -4,6 +4,7 @@ from typing import Annotated, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.models.problem import ProblemType
+from app.schemas.concept import ConceptId, ConceptIds
 
 Question = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Choice = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -51,9 +52,15 @@ class ProblemCreate(BaseModel):
     choices: Choices | None = None
     answer: str | None = None
     source_note_id: NoteId | None = None
+    primary_concept_id: ConceptId | None = None
+    supporting_concept_ids: ConceptIds = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_configuration(self) -> Self:
+        if self.primary_concept_id in self.supporting_concept_ids:
+            raise ValueError("Primary concept cannot also be a supporting concept")
+        if len(self.supporting_concept_ids) != len(set(self.supporting_concept_ids)):
+            raise ValueError("Supporting concepts must not contain duplicates")
         if (
             self.problem_type is ProblemType.FILL_BLANK
             and self.question.count(FILL_BLANK_MARKER) != 1
@@ -74,6 +81,8 @@ class ProblemUpdate(BaseModel):
     choices: Choices | None = None
     answer: str | None = None
     source_note_id: NoteId | None = None
+    primary_concept_id: ConceptId | None = None
+    supporting_concept_ids: ConceptIds | None = None
 
     @model_validator(mode="after")
     def validate_changes(self) -> Self:
@@ -85,6 +94,11 @@ class ProblemUpdate(BaseModel):
             raise ValueError("Question cannot be null")
         if "problem_type" in self.model_fields_set and self.problem_type is None:
             raise ValueError("Problem type cannot be null")
+        if (
+            "supporting_concept_ids" in self.model_fields_set
+            and self.supporting_concept_ids is None
+        ):
+            raise ValueError("Supporting concept IDs cannot be null")
         return self
 
 
@@ -101,6 +115,8 @@ class ProblemRead(BaseModel):
     answer: str | None
     source_note_id: int | None
     source_note_title: str | None
+    primary_concept_id: int | None
+    supporting_concept_ids: list[int]
     presented_count: int
     correct_count: int
     incorrect_count: int

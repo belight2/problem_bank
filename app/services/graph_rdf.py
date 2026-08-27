@@ -27,6 +27,14 @@ PROBLEM_TYPE_RESOURCES = {
     "fill_blank": "pb:FillBlankProblemType",
 }
 
+CONCEPT_RELATION_PREDICATES = {
+    "broader": "pb:broaderConcept",
+    "prerequisite": "pb:prerequisiteOf",
+    "related": "pb:relatedConcept",
+    "contrasts": "pb:contrastsWith",
+    "confused_with": "pb:commonlyConfusedWith",
+}
+
 
 def resource_iri(aggregate_type: str, aggregate_id: int) -> str:
     if aggregate_type not in {item.value for item in GraphAggregateType}:
@@ -53,6 +61,19 @@ def nonnegative_integer(value: Any, field_name: str) -> int:
     return value
 
 
+def integer_list(value: Any, field_name: str) -> list[int]:
+    # Concept fields were added after the first graph payload version. Treating a
+    # missing field as an empty list keeps already queued Outbox events replayable.
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name}는 배열이어야 합니다.")
+    values = [positive_integer(item, field_name) for item in value]
+    if len(values) != len(set(values)):
+        raise ValueError(f"{field_name}에 중복된 ID가 있습니다.")
+    return values
+
+
 def required_string(entity: dict[str, Any], field_name: str) -> str:
     value = entity.get(field_name)
     if not isinstance(value, str) or not value:
@@ -73,6 +94,8 @@ def card_triples(entity: dict[str, Any]) -> list[str]:
         triples.append(
             f"{subject} dcterms:description {sparql_string(description, language='ko')} ."
         )
+    for concept_id in integer_list(entity.get("concept_ids"), "concept_ids"):
+        triples.append(f"{subject} pb:usesConcept pbr:concept-{concept_id} .")
     return triples
 
 
@@ -123,6 +146,17 @@ def problem_triples(entity: dict[str, Any]) -> list[str]:
             f"{subject} pb:derivedFrom "
             f"pbr:note-{positive_integer(source_note_id, 'source_note_id')} ."
         )
+    primary_concept_id = entity.get("primary_concept_id")
+    if primary_concept_id is not None:
+        triples.append(
+            f"{subject} pb:primaryConcept "
+            f"pbr:concept-{positive_integer(primary_concept_id, 'primary_concept_id')} ."
+        )
+    for concept_id in integer_list(
+        entity.get("supporting_concept_ids"),
+        "supporting_concept_ids",
+    ):
+        triples.append(f"{subject} pb:supportingConcept pbr:concept-{concept_id} .")
     return triples
 
 
@@ -141,6 +175,36 @@ def note_triples(entity: dict[str, Any]) -> list[str]:
         triples.append(
             f"{subject} pb:classifiedUnder pbr:topic-{positive_integer(topic_id, 'topic_id')} ."
         )
+    for concept_id in integer_list(entity.get("concept_ids"), "concept_ids"):
+        triples.append(f"{subject} pb:explains pbr:concept-{concept_id} .")
+    return triples
+
+
+def concept_triples(entity: dict[str, Any]) -> list[str]:
+    concept_id = positive_integer(entity.get("id"), "id")
+    subject = f"pbr:concept-{concept_id}"
+    triples = [
+        f"{subject} a pb:Concept .",
+        f'{subject} pb:externalId "{concept_id}"^^xsd:positiveInteger .',
+        f"{subject} rdfs:label {sparql_string(required_string(entity, 'name'), language='ko')} .",
+    ]
+    description = entity.get("description")
+    if isinstance(description, str) and description:
+        triples.append(
+            f"{subject} dcterms:description {sparql_string(description, language='ko')} ."
+        )
+    relations = entity.get("relations", [])
+    if not isinstance(relations, list):
+        raise ValueError("relations는 배열이어야 합니다.")
+    for relation in relations:
+        if not isinstance(relation, dict):
+            raise ValueError("relations 항목은 객체여야 합니다.")
+        relation_type = required_string(relation, "relation_type")
+        predicate = CONCEPT_RELATION_PREDICATES.get(relation_type)
+        if predicate is None:
+            raise ValueError(f"지원하지 않는 개념 관계 유형입니다: {relation_type}")
+        target_id = positive_integer(relation.get("target_concept_id"), "target_concept_id")
+        triples.append(f"{subject} {predicate} pbr:concept-{target_id} .")
     return triples
 
 
@@ -149,6 +213,7 @@ TRIPLE_BUILDERS: dict[str, Callable[[dict[str, Any]], list[str]]] = {
     GraphAggregateType.TOPIC.value: topic_triples,
     GraphAggregateType.PROBLEM.value: problem_triples,
     GraphAggregateType.NOTE.value: note_triples,
+    GraphAggregateType.CONCEPT.value: concept_triples,
 }
 
 MANAGED_PREDICATES = {
@@ -157,6 +222,7 @@ MANAGED_PREDICATES = {
         "pb:externalId",
         "rdfs:label",
         "dcterms:description",
+        "pb:usesConcept",
     ),
     GraphAggregateType.TOPIC.value: (
         "rdf:type",
@@ -176,6 +242,8 @@ MANAGED_PREDICATES = {
         "pb:correctCount",
         "pb:incorrectCount",
         "pb:derivedFrom",
+        "pb:primaryConcept",
+        "pb:supportingConcept",
     ),
     GraphAggregateType.NOTE.value: (
         "rdf:type",
@@ -183,6 +251,18 @@ MANAGED_PREDICATES = {
         "pb:inCard",
         "pb:classifiedUnder",
         "rdfs:label",
+        "pb:explains",
+    ),
+    GraphAggregateType.CONCEPT.value: (
+        "rdf:type",
+        "pb:externalId",
+        "rdfs:label",
+        "dcterms:description",
+        "pb:broaderConcept",
+        "pb:prerequisiteOf",
+        "pb:relatedConcept",
+        "pb:contrastsWith",
+        "pb:commonlyConfusedWith",
     ),
 }
 

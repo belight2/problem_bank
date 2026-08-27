@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.card import Card
+from app.models.concept import Concept
 from app.models.graph_outbox import (
     GraphAggregateType,
     GraphOutboxEvent,
@@ -16,6 +17,7 @@ from app.models.problem import Problem
 from app.models.topic import Topic
 from app.services.graph_outbox import (
     card_graph_entity,
+    concept_graph_entity,
     enqueue_graph_event,
     note_graph_entity,
     problem_graph_entity,
@@ -113,16 +115,15 @@ def current_graph_entity(
     if aggregate_type is GraphAggregateType.PROBLEM:
         problem = db.get(Problem, aggregate_id)
         return problem_graph_entity(problem) if problem is not None else None
-    raise InvalidGraphEventError(
-        f"지원하지 않는 그래프 엔티티 유형입니다: {aggregate_type}"
-    )
+    if aggregate_type is GraphAggregateType.CONCEPT:
+        concept = db.get(Concept, aggregate_id)
+        return concept_graph_entity(concept) if concept is not None else None
+    raise InvalidGraphEventError(f"지원하지 않는 그래프 엔티티 유형입니다: {aggregate_type}")
 
 
 def retry_failed_graph_event(db: Session, event_id: int) -> GraphRetryResult | None:
     failed_event = db.scalar(
-        select(GraphOutboxEvent)
-        .where(GraphOutboxEvent.id == event_id)
-        .with_for_update()
+        select(GraphOutboxEvent).where(GraphOutboxEvent.id == event_id).with_for_update()
     )
     if failed_event is None:
         return None

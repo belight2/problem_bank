@@ -19,6 +19,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.card import Card
+    from app.models.concept import ProblemConcept
     from app.models.note import Note
     from app.models.topic import Topic
     from app.models.wrong_answer import WrongAnswer
@@ -87,6 +88,10 @@ class Problem(Base):
         cascade="all, delete-orphan",
         uselist=False,
     )
+    concept_links: Mapped[list["ProblemConcept"]] = relationship(
+        back_populates="problem",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def topic_name(self) -> str:
@@ -95,3 +100,14 @@ class Problem(Base):
     @property
     def source_note_title(self) -> str | None:
         return self.source_note.title if self.source_note is not None else None
+
+    @property
+    def primary_concept_id(self) -> int | None:
+        return next(
+            (link.concept_id for link in self.concept_links if link.role == "primary"),
+            None,
+        )
+
+    @property
+    def supporting_concept_ids(self) -> list[int]:
+        return [link.concept_id for link in self.concept_links if link.role == "supporting"]

@@ -25,6 +25,7 @@ from app.schemas.problem import (
     StudyResultsRead,
     StudyResultsWrite,
 )
+from app.services.concepts import set_problem_concepts
 from app.services.graph_outbox import enqueue_problem_event
 
 router = APIRouter(prefix="/cards/{card_id}/problems", tags=["problems"])
@@ -38,7 +39,11 @@ def ensure_card_exists(card_id: int, db: Session) -> None:
 def get_problem_or_404(card_id: int, problem_id: int, db: Session) -> Problem:
     statement = (
         select(Problem)
-        .options(selectinload(Problem.topic), selectinload(Problem.source_note))
+        .options(
+            selectinload(Problem.topic),
+            selectinload(Problem.source_note),
+            selectinload(Problem.concept_links),
+        )
         .where(
             Problem.id == problem_id,
             Problem.card_id == card_id,
@@ -98,9 +103,22 @@ def create_problem(card_id: int, payload: ProblemCreate, db: DatabaseSession) ->
         card_id=card_id,
         topic=topic,
         source_note=source_note,
-        **payload.model_dump(exclude={"source_note_id"}),
+        **payload.model_dump(
+            exclude={
+                "source_note_id",
+                "primary_concept_id",
+                "supporting_concept_ids",
+            }
+        ),
     )
     db.add(problem)
+    db.flush()
+    set_problem_concepts(
+        db,
+        problem,
+        primary_concept_id=payload.primary_concept_id,
+        supporting_concept_ids=payload.supporting_concept_ids,
+    )
     db.flush()
     enqueue_problem_event(db, problem)
     db.commit()
@@ -119,7 +137,11 @@ def list_problems(
     ensure_card_exists(card_id, db)
     statement = (
         select(Problem)
-        .options(selectinload(Problem.topic), selectinload(Problem.source_note))
+        .options(
+            selectinload(Problem.topic),
+            selectinload(Problem.source_note),
+            selectinload(Problem.concept_links),
+        )
         .where(Problem.card_id == card_id)
     )
     if topic_id is not None:
@@ -143,7 +165,11 @@ def get_random_problems(
     ensure_card_exists(card_id, db)
     statement = (
         select(Problem)
-        .options(selectinload(Problem.topic), selectinload(Problem.source_note))
+        .options(
+            selectinload(Problem.topic),
+            selectinload(Problem.source_note),
+            selectinload(Problem.concept_links),
+        )
         .where(Problem.card_id == card_id)
     )
     if topic_id is not None:
@@ -210,7 +236,11 @@ def record_study_results(
     problems = list(
         db.scalars(
             select(Problem)
-            .options(selectinload(Problem.topic), selectinload(Problem.source_note))
+            .options(
+                selectinload(Problem.topic),
+                selectinload(Problem.source_note),
+                selectinload(Problem.concept_links),
+            )
             .where(
                 Problem.card_id == card_id,
                 Problem.id.in_(expected_problem_ids),
@@ -292,6 +322,8 @@ def update_problem(
                 "choices": problem.choices,
                 "answer": problem.answer,
                 "source_note_id": problem.source_note_id,
+                "primary_concept_id": problem.primary_concept_id,
+                "supporting_concept_ids": problem.supporting_concept_ids,
             }
             | changes
         )
@@ -304,10 +336,22 @@ def update_problem(
 
     topic = get_topic_for_card_or_404(card_id, final_state.topic_id, db)
     source_note = get_optional_source_note(card_id, final_state.source_note_id, db)
-    for field, value in final_state.model_dump(exclude={"source_note_id"}).items():
+    for field, value in final_state.model_dump(
+        exclude={
+            "source_note_id",
+            "primary_concept_id",
+            "supporting_concept_ids",
+        }
+    ).items():
         setattr(problem, field, value)
     problem.topic = topic
     problem.source_note = source_note
+    set_problem_concepts(
+        db,
+        problem,
+        primary_concept_id=final_state.primary_concept_id,
+        supporting_concept_ids=final_state.supporting_concept_ids,
+    )
 
     db.flush()
     enqueue_problem_event(db, problem)

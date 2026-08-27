@@ -8,6 +8,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.card import Card
+    from app.models.concept import Concept
 
 
 class Profile(Base):
@@ -47,6 +48,10 @@ class Profile(Base):
     )
 
     cards: Mapped[list["Card"]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+    )
+    concepts: Mapped[list["Concept"]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
     )

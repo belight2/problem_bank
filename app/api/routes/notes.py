@@ -10,6 +10,7 @@ from app.models.graph_outbox import GraphOutboxEventType
 from app.models.note import Note
 from app.models.topic import Topic
 from app.schemas.note import NoteCreate, NoteRead, NoteUpdate
+from app.services.concepts import set_note_concepts
 from app.services.graph_outbox import enqueue_note_event
 
 router = APIRouter(prefix="/cards/{card_id}/notes", tags=["notes"])
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/cards/{card_id}/notes", tags=["notes"])
 def get_note_or_404(card_id: int, note_id: int, db: Session) -> Note:
     note = db.scalar(
         select(Note)
-        .options(selectinload(Note.topic))
+        .options(selectinload(Note.topic), selectinload(Note.concept_links))
         .where(Note.id == note_id, Note.card_id == card_id)
     )
     if note is None:
@@ -47,6 +48,8 @@ def create_note(card_id: int, payload: NoteCreate, db: DatabaseSession) -> Note:
     )
     db.add(note)
     db.flush()
+    set_note_concepts(db, note, payload.concept_ids)
+    db.flush()
     enqueue_note_event(db, note)
     db.commit()
     db.refresh(note)
@@ -62,7 +65,11 @@ def list_notes(
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
 ) -> list[Note]:
     get_card_or_404(card_id, db)
-    statement = select(Note).options(selectinload(Note.topic)).where(Note.card_id == card_id)
+    statement = (
+        select(Note)
+        .options(selectinload(Note.topic), selectinload(Note.concept_links))
+        .where(Note.card_id == card_id)
+    )
     if topic_id is not None:
         statement = statement.where(Note.topic_id == topic_id)
     statement = (
@@ -87,6 +94,8 @@ def update_note(
     changes = payload.model_dump(exclude_unset=True)
     if "topic_id" in changes:
         note.topic = get_optional_topic(card_id, changes.pop("topic_id"), db)
+    if "concept_ids" in changes:
+        set_note_concepts(db, note, changes.pop("concept_ids"))
     for field, value in changes.items():
         setattr(note, field, value)
     db.flush()

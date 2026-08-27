@@ -18,6 +18,7 @@ class GraphAggregateType(StrEnum):
     TOPIC = "topic"
     PROBLEM = "problem"
     NOTE = "note"
+    CONCEPT = "concept"
 
 
 class GraphOutboxStatus(StrEnum):

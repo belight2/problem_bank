@@ -1,4 +1,13 @@
 from app.models.card import Card
+from app.models.concept import (
+    CardConcept,
+    Concept,
+    ConceptRelation,
+    ConceptRelationType,
+    NoteConcept,
+    ProblemConcept,
+    ProblemConceptRole,
+)
 from app.models.graph_outbox import (
     GraphAggregateType,
     GraphOutboxEvent,
@@ -17,12 +26,19 @@ from app.models.wrong_answer import WrongAnswer, WrongAnswerStatus
 
 __all__ = [
     "Card",
+    "CardConcept",
+    "Concept",
+    "ConceptRelation",
+    "ConceptRelationType",
     "GraphAggregateType",
     "GraphOutboxEvent",
     "GraphOutboxEventType",
     "GraphOutboxStatus",
     "Note",
+    "NoteConcept",
     "Problem",
+    "ProblemConcept",
+    "ProblemConceptRole",
     "ProblemType",
     "Profile",
     "RandomStudyPreset",

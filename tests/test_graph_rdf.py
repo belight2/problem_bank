@@ -54,6 +54,23 @@ from app.services.graph_rdf import PB_NAMESPACE, PBR_NAMESPACE, build_graph_upda
             {"id": 4, "card_id": 1, "topic_id": None, "title": "정규화 정리"},
             ["a pb:Note", 'rdfs:label "정규화 정리"@ko'],
         ),
+        (
+            "concept",
+            "5",
+            {
+                "id": 5,
+                "name": "정규화",
+                "description": "중복을 줄이는 데이터베이스 설계 기법",
+                "relations": [
+                    {"target_concept_id": 6, "relation_type": "related"},
+                ],
+            },
+            [
+                "a pb:Concept",
+                'rdfs:label "정규화"@ko',
+                "pb:relatedConcept pbr:concept-6",
+            ],
+        ),
     ],
 )
 def test_build_upsert_graph_update(
@@ -115,18 +132,24 @@ def test_upsert_only_replaces_relationally_managed_predicates() -> None:
 
     assert "VALUES ?predicate" in update
     assert "pb:derivedFrom" in update
-    assert "pb:primaryConcept" not in update
-    assert "pb:supportingConcept" not in update
+    assert "pb:primaryConcept" in update
+    assert "pb:supportingConcept" in update
 
     graph = Graph()
     pb = Namespace(PB_NAMESPACE)
     pbr = Namespace(PBR_NAMESPACE)
+    graph.add((pbr["problem-3"], pb.addressesMisconception, pbr["misconception-1"]))
     graph.add((pbr["problem-3"], pb.primaryConcept, pbr["concept-normalization"]))
     graph.add((pbr["problem-3"], pb.presentedCount, Literal(99)))
 
     graph.update(update)
 
-    assert (pbr["problem-3"], pb.primaryConcept, pbr["concept-normalization"]) in graph
+    assert (
+        pbr["problem-3"],
+        pb.addressesMisconception,
+        pbr["misconception-1"],
+    ) in graph
+    assert (pbr["problem-3"], pb.primaryConcept, pbr["concept-normalization"]) not in graph
     assert (pbr["problem-3"], pb.presentedCount, Literal(99)) not in graph
 
 

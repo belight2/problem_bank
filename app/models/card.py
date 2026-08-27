@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.concept import CardConcept
     from app.models.note import Note
     from app.models.problem import Problem
     from app.models.profile import Profile
@@ -60,3 +61,11 @@ class Card(Base):
         back_populates="card",
         cascade="all, delete-orphan",
     )
+    concept_links: Mapped[list["CardConcept"]] = relationship(
+        back_populates="card",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def concept_ids(self) -> list[int]:
+        return [link.concept_id for link in self.concept_links]

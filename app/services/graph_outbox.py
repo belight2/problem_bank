@@ -3,6 +3,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.card import Card
+from app.models.concept import Concept
 from app.models.graph_outbox import (
     GraphAggregateType,
     GraphOutboxEvent,
@@ -28,6 +29,7 @@ def card_graph_entity(card: Card) -> dict[str, Any]:
         "profile_id": card.profile_id,
         "title": card.title,
         "description": card.description,
+        "concept_ids": sorted(card.concept_ids),
     }
 
 
@@ -50,6 +52,8 @@ def problem_graph_entity(problem: Problem) -> dict[str, Any]:
         "presented_count": problem.presented_count,
         "correct_count": problem.correct_count,
         "incorrect_count": problem.incorrect_count,
+        "primary_concept_id": problem.primary_concept_id,
+        "supporting_concept_ids": sorted(problem.supporting_concept_ids),
     }
 
 
@@ -59,6 +63,22 @@ def note_graph_entity(note: Note) -> dict[str, Any]:
         "card_id": note.card_id,
         "topic_id": note.topic_id,
         "title": note.title,
+        "concept_ids": sorted(note.concept_ids),
+    }
+
+
+def concept_graph_entity(concept: Concept) -> dict[str, Any]:
+    return {
+        "id": concept.id,
+        "name": concept.name,
+        "description": concept.description,
+        "relations": [
+            {
+                "target_concept_id": relation.target_concept_id,
+                "relation_type": relation.relation_type,
+            }
+            for relation in sorted(concept.outgoing_relations, key=lambda item: item.id or 0)
+        ],
     }
 
 
@@ -136,4 +156,18 @@ def enqueue_note_event(
         aggregate_id=note.id,
         event_type=event_type,
         entity=note_graph_entity(note),
+    )
+
+
+def enqueue_concept_event(
+    db: Session,
+    concept: Concept,
+    event_type: GraphOutboxEventType = GraphOutboxEventType.UPSERT,
+) -> GraphOutboxEvent:
+    return enqueue_graph_event(
+        db,
+        aggregate_type=GraphAggregateType.CONCEPT,
+        aggregate_id=concept.id,
+        event_type=event_type,
+        entity=concept_graph_entity(concept),
     )

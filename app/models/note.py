@@ -8,6 +8,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.card import Card
+    from app.models.concept import NoteConcept
     from app.models.problem import Problem
     from app.models.topic import Topic
 
@@ -37,7 +38,15 @@ class Note(Base):
         back_populates="source_note",
         passive_deletes=True,
     )
+    concept_links: Mapped[list["NoteConcept"]] = relationship(
+        back_populates="note",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def topic_name(self) -> str | None:
         return self.topic.name if self.topic is not None else None
+
+    @property
+    def concept_ids(self) -> list[int]:
+        return [link.concept_id for link in self.concept_links]

@@ -48,18 +48,17 @@ docker compose up -d fuseki
 
 ## 애플리케이션 데이터 동기화
 
-FastAPI는 PostgreSQL의 `graph_outbox`를 읽는 백그라운드 작업자를 실행합니다. 카드·주제·문제·노트와 문제별 출제·정답·오답 횟수를 안정적인 리소스 IRI로 변환한 뒤 Fuseki의 SPARQL Update endpoint에 반영합니다.
+FastAPI는 PostgreSQL의 `graph_outbox`를 읽는 백그라운드 작업자를 실행합니다. 카드·주제·개념·문제·노트, 개념 관계, 문제별 출제·정답·오답 횟수를 안정적인 리소스 IRI로 변환한 뒤 Fuseki의 SPARQL Update endpoint에 반영합니다.
 
 ```text
 card-{id}
 topic-{id}
 problem-{id}
 note-{id}
+concept-{id}
 ```
 
-동일한 리소스의 갱신은 PostgreSQL이 관리하는 속성만 지우고 현재 상태를 다시 넣는 멱등 방식입니다. `primaryConcept`, `supportingConcept`, `explains`처럼 그래프에서 별도로 관리하는 의미 관계는 CRUD 동기화로 제거하지 않습니다. 전송 성공 뒤 DB 상태 기록 전에 프로세스가 종료되어 같은 이벤트가 다시 처리되더라도 결과가 중복되지 않습니다. 문제의 정답·선택지와 노트의 Markdown 본문은 RDF payload에 포함하지 않습니다.
-
-현재 관계형 모델에는 개념을 직접 연결하는 기능이 없으므로 `primaryConcept`는 선택 관계로 검증합니다. 이후 문제·노트에 개념 연결 기능을 추가하면 이 관계를 Outbox payload와 RDF 변환에도 포함할 수 있습니다.
+동일한 리소스의 갱신은 PostgreSQL이 관리하는 속성과 관계만 지우고 현재 상태를 다시 넣는 멱등 방식입니다. 카드의 `usesConcept`, 문제의 `primaryConcept`·`supportingConcept`, 노트의 `explains`, 개념 간 관계를 CRUD 변경과 함께 동기화합니다. 전송 성공 뒤 DB 상태 기록 전에 프로세스가 종료되어 같은 이벤트가 다시 처리되더라도 결과가 중복되지 않습니다. 문제의 정답·선택지와 노트의 Markdown 본문은 RDF payload에 포함하지 않습니다.
 
 예제 데이터에서 주요 개념 관계를 조회하는 SPARQL은 다음과 같습니다.
 
@@ -108,6 +107,7 @@ Fuseki dataset은 Jena OWL Micro Rule Reasoner를 사용하므로 `owl:Transitiv
 - 온톨로지 namespace: `https://belight2.github.io/problem_bank/ontology#`
 - 데이터 resource namespace: `https://belight2.github.io/problem_bank/resource/`
 - PostgreSQL 엔티티: `pb:externalId`로 기존 정수 ID 연결
-- 개념과 오개념: 영문 소문자와 하이픈으로 된 `dcterms:identifier` 사용
+- PostgreSQL에서 생성한 개념: `concept-{id}` IRI와 `pb:externalId` 사용
+- 정적 예제의 개념과 오개념: 영문 소문자와 하이픈으로 된 `dcterms:identifier` 사용
 
 아직 실제 GraphDB 데이터가 없는 단계이므로 namespace는 `0.1.0` 동안 변경할 수 있습니다. 실제 데이터를 생성하기 시작한 뒤에는 기존 URI가 깨지지 않도록 유지합니다.

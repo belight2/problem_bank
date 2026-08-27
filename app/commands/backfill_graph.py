@@ -9,7 +9,8 @@ def main() -> None:
 
     print(
         "그래프 소급 적재 이벤트 생성 완료: "
-        f"카드 {result.cards}, 주제 {result.topics}, 노트 {result.notes}, "
+        f"개념 {result.concepts}, 카드 {result.cards}, 주제 {result.topics}, "
+        f"노트 {result.notes}, "
         f"문제 {result.problems}, 전체 {result.total}"
     )
 
