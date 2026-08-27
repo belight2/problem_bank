@@ -13,6 +13,13 @@ class GraphOutboxEventType(StrEnum):
     DELETE = "delete"
 
 
+class GraphAggregateType(StrEnum):
+    CARD = "card"
+    TOPIC = "topic"
+    PROBLEM = "problem"
+    NOTE = "note"
+
+
 class GraphOutboxStatus(StrEnum):
     PENDING = "pending"
     PROCESSING = "processing"

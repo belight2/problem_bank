@@ -96,6 +96,8 @@ docker compose restart fuseki
 
 Fuseki에서는 OWL Micro 추론을 적용합니다. SHACL 파일은 조회할 수 있도록 함께 불러오지만 요청 데이터에 대한 SHACL 검증을 자동으로 강제하지는 않습니다. 저장소의 온톨로지 테스트가 SHACL 규칙을 검증합니다.
 
+카드·주제·문제·노트 CRUD와 문제 풀이 통계 변경은 PostgreSQL의 `graph_outbox`에 Fuseki 동기화 이벤트를 같은 트랜잭션으로 기록합니다. 현재 단계에서는 이벤트를 안전하게 적재하는 부분까지만 구현되어 있으므로, 실제 사용자 데이터가 Fuseki에 반영되려면 Outbox 처리 작업자가 추가로 필요합니다.
+
 ### 3. Python 패키지 설치
 
 `uv` 사용:

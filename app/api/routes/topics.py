@@ -5,9 +5,11 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import DatabaseSession
 from app.api.routes.cards import get_card_or_404
+from app.models.graph_outbox import GraphOutboxEventType
 from app.models.problem import Problem
 from app.models.topic import Topic
 from app.schemas.topic import TopicCreate, TopicRead, TopicUpdate
+from app.services.graph_outbox import enqueue_topic_event
 
 router = APIRouter(prefix="/cards/{card_id}/topics", tags=["topics"])
 
@@ -41,8 +43,10 @@ def ensure_topic_name_available(
         )
 
 
-def commit_topic_name_change(db: Session) -> None:
+def commit_topic_name_change(db: Session, topic: Topic) -> None:
     try:
+        db.flush()
+        enqueue_topic_event(db, topic)
         db.commit()
     except IntegrityError as error:
         db.rollback()
@@ -58,7 +62,7 @@ def create_topic(card_id: int, payload: TopicCreate, db: DatabaseSession) -> Top
     ensure_topic_name_available(card_id, payload.name, db)
     topic = Topic(card_id=card_id, **payload.model_dump())
     db.add(topic)
-    commit_topic_name_change(db)
+    commit_topic_name_change(db, topic)
     db.refresh(topic)
     return topic
 
@@ -85,7 +89,7 @@ def update_topic(
     topic = get_topic_or_404(card_id, topic_id, db)
     ensure_topic_name_available(card_id, payload.name, db, exclude_topic_id=topic_id)
     topic.name = payload.name
-    commit_topic_name_change(db)
+    commit_topic_name_change(db, topic)
     db.refresh(topic)
     return topic
 
@@ -100,6 +104,7 @@ def delete_topic(card_id: int, topic_id: int, db: DatabaseSession) -> Response:
             detail="Topic is in use",
         )
 
+    enqueue_topic_event(db, topic, GraphOutboxEventType.DELETE)
     db.delete(topic)
     try:
         db.commit()

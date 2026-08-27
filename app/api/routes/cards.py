@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import LOCAL_PROFILE_ID, CurrentProfile, DatabaseSession
 from app.models.card import Card
+from app.models.graph_outbox import GraphOutboxEventType
 from app.schemas.card import CardCreate, CardRead, CardUpdate
+from app.services.graph_outbox import enqueue_card_event
 
 router = APIRouter(prefix="/cards", tags=["cards"])
 
@@ -30,6 +32,8 @@ def create_card(
 ) -> Card:
     card = Card(profile=profile, **payload.model_dump())
     db.add(card)
+    db.flush()
+    enqueue_card_event(db, card)
     db.commit()
     db.refresh(card)
     return card
@@ -68,6 +72,7 @@ def update_card(
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(card, field, value)
 
+    enqueue_card_event(db, card)
     db.commit()
     db.refresh(card)
     return card
@@ -80,6 +85,7 @@ def delete_card(
     profile: CurrentProfile,
 ) -> Response:
     card = get_card_or_404(card_id, db, profile.id)
+    enqueue_card_event(db, card, GraphOutboxEventType.DELETE)
     db.delete(card)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

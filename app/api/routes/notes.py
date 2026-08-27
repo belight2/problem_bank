@@ -6,9 +6,11 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.dependencies import DatabaseSession
 from app.api.routes.cards import get_card_or_404
+from app.models.graph_outbox import GraphOutboxEventType
 from app.models.note import Note
 from app.models.topic import Topic
 from app.schemas.note import NoteCreate, NoteRead, NoteUpdate
+from app.services.graph_outbox import enqueue_note_event
 
 router = APIRouter(prefix="/cards/{card_id}/notes", tags=["notes"])
 
@@ -44,6 +46,8 @@ def create_note(card_id: int, payload: NoteCreate, db: DatabaseSession) -> Note:
         content_markdown=payload.content_markdown,
     )
     db.add(note)
+    db.flush()
+    enqueue_note_event(db, note)
     db.commit()
     db.refresh(note)
     return note
@@ -85,6 +89,8 @@ def update_note(
         note.topic = get_optional_topic(card_id, changes.pop("topic_id"), db)
     for field, value in changes.items():
         setattr(note, field, value)
+    db.flush()
+    enqueue_note_event(db, note)
     db.commit()
     db.refresh(note)
     return note
@@ -93,6 +99,7 @@ def update_note(
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_note(card_id: int, note_id: int, db: DatabaseSession) -> Response:
     note = get_note_or_404(card_id, note_id, db)
+    enqueue_note_event(db, note, GraphOutboxEventType.DELETE)
     db.delete(note)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

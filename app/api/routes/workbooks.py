@@ -26,6 +26,7 @@ from app.schemas.workbook import (
     WorkbookStudyRead,
     WorkbookUpdate,
 )
+from app.services.graph_outbox import enqueue_problem_event
 
 router = APIRouter(prefix="/cards/{card_id}/workbooks", tags=["workbooks"])
 
@@ -169,6 +170,7 @@ def create_attempt(workbook: Workbook, db: Session) -> tuple[StudySession, list[
     )
     for problem in ordered_problems:
         problem.presented_count += 1
+        enqueue_problem_event(db, problem)
     workbook.attempts.append(attempt)
     return attempt, ordered_problems
 

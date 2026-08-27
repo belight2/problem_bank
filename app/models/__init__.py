@@ -1,5 +1,10 @@
 from app.models.card import Card
-from app.models.graph_outbox import GraphOutboxEvent, GraphOutboxEventType, GraphOutboxStatus
+from app.models.graph_outbox import (
+    GraphAggregateType,
+    GraphOutboxEvent,
+    GraphOutboxEventType,
+    GraphOutboxStatus,
+)
 from app.models.note import Note
 from app.models.problem import Problem, ProblemType
 from app.models.profile import Profile
@@ -12,6 +17,7 @@ from app.models.wrong_answer import WrongAnswer, WrongAnswerStatus
 
 __all__ = [
     "Card",
+    "GraphAggregateType",
     "GraphOutboxEvent",
     "GraphOutboxEventType",
     "GraphOutboxStatus",

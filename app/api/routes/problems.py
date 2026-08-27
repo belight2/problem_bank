@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.dependencies import DatabaseSession
 from app.models.card import Card
+from app.models.graph_outbox import GraphOutboxEventType
 from app.models.note import Note
 from app.models.problem import Problem
 from app.models.study_session import StudySession
@@ -24,6 +25,7 @@ from app.schemas.problem import (
     StudyResultsRead,
     StudyResultsWrite,
 )
+from app.services.graph_outbox import enqueue_problem_event
 
 router = APIRouter(prefix="/cards/{card_id}/problems", tags=["problems"])
 
@@ -99,6 +101,8 @@ def create_problem(card_id: int, payload: ProblemCreate, db: DatabaseSession) ->
         **payload.model_dump(exclude={"source_note_id"}),
     )
     db.add(problem)
+    db.flush()
+    enqueue_problem_event(db, problem)
     db.commit()
     db.refresh(problem)
     return problem
@@ -162,6 +166,7 @@ def get_random_problems(
     session_id = str(uuid4())
     for problem in selected_problems:
         problem.presented_count += 1
+        enqueue_problem_event(db, problem)
     db.add(
         StudySession(
             id=session_id,
@@ -238,10 +243,13 @@ def record_study_results(
     completed_at = datetime.now(UTC)
     for problem in problems:
         result = result_by_problem_id[problem.id]
+        statistics_changed = False
         if result == "correct":
             problem.correct_count += 1
+            statistics_changed = True
         elif result == "incorrect":
             problem.incorrect_count += 1
+            statistics_changed = True
             wrong_answer = wrong_answers_by_problem_id.get(problem.id)
             if wrong_answer is None:
                 wrong_answer = WrongAnswer(
@@ -252,6 +260,8 @@ def record_study_results(
             wrong_answer.status = WrongAnswerStatus.NEEDS_REVIEW.value
             wrong_answer.last_submitted_answer = submitted_answer_by_problem_id[problem.id]
             wrong_answer.last_incorrect_at = completed_at
+        if statistics_changed:
+            enqueue_problem_event(db, problem)
 
     session.results = [result.model_dump() for result in payload.results]
     session.completed_at = completed_at
@@ -299,6 +309,8 @@ def update_problem(
     problem.topic = topic
     problem.source_note = source_note
 
+    db.flush()
+    enqueue_problem_event(db, problem)
     db.commit()
     db.refresh(problem)
     return problem
@@ -307,6 +319,7 @@ def update_problem(
 @router.delete("/{problem_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_problem(card_id: int, problem_id: int, db: DatabaseSession) -> Response:
     problem = get_problem_or_404(card_id, problem_id, db)
+    enqueue_problem_event(db, problem, GraphOutboxEventType.DELETE)
     db.delete(problem)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
