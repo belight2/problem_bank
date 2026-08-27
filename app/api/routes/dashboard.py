@@ -12,7 +12,12 @@ from app.models.study_session import StudySession
 from app.models.topic import Topic
 from app.models.workbook import Workbook
 from app.models.wrong_answer import WrongAnswer, WrongAnswerStatus
-from app.schemas.dashboard import DashboardRead, WeakTopicRead
+from app.schemas.dashboard import (
+    DashboardCardRead,
+    DashboardRead,
+    RecentStudyRead,
+    WeakTopicRead,
+)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -119,6 +124,113 @@ def get_dashboard(profile: CurrentProfile, db: DatabaseSession) -> DashboardRead
         )
     weak_topics.sort(key=lambda item: (item.accuracy_rate, -item.graded_count))
 
+    problem_by_card = (
+        select(
+            Problem.card_id.label("card_id"),
+            func.count(Problem.id).label("problem_count"),
+            func.coalesce(func.sum(Problem.correct_count), 0).label("correct_count"),
+            func.coalesce(func.sum(Problem.incorrect_count), 0).label("incorrect_count"),
+        )
+        .group_by(Problem.card_id)
+        .subquery()
+    )
+    note_by_card = (
+        select(Note.card_id.label("card_id"), func.count(Note.id).label("note_count"))
+        .group_by(Note.card_id)
+        .subquery()
+    )
+    workbook_by_card = (
+        select(
+            Workbook.card_id.label("card_id"),
+            func.count(Workbook.id).label("workbook_count"),
+        )
+        .group_by(Workbook.card_id)
+        .subquery()
+    )
+    completed_by_card = (
+        select(
+            StudySession.card_id.label("card_id"),
+            func.count(StudySession.id).label("completed_session_count"),
+        )
+        .where(StudySession.completed_at.is_not(None))
+        .group_by(StudySession.card_id)
+        .subquery()
+    )
+    wrong_by_card = (
+        select(
+            WrongAnswer.card_id.label("card_id"),
+            func.count(WrongAnswer.id).label("wrong_answer_count"),
+        )
+        .where(WrongAnswer.status != WrongAnswerStatus.RESOLVED.value)
+        .group_by(WrongAnswer.card_id)
+        .subquery()
+    )
+    card_rows = db.execute(
+        select(
+            Card.id,
+            Card.title,
+            func.coalesce(problem_by_card.c.problem_count, 0),
+            func.coalesce(note_by_card.c.note_count, 0),
+            func.coalesce(workbook_by_card.c.workbook_count, 0),
+            func.coalesce(completed_by_card.c.completed_session_count, 0),
+            func.coalesce(problem_by_card.c.correct_count, 0),
+            func.coalesce(problem_by_card.c.incorrect_count, 0),
+            func.coalesce(wrong_by_card.c.wrong_answer_count, 0),
+        )
+        .outerjoin(problem_by_card, problem_by_card.c.card_id == Card.id)
+        .outerjoin(note_by_card, note_by_card.c.card_id == Card.id)
+        .outerjoin(workbook_by_card, workbook_by_card.c.card_id == Card.id)
+        .outerjoin(completed_by_card, completed_by_card.c.card_id == Card.id)
+        .outerjoin(wrong_by_card, wrong_by_card.c.card_id == Card.id)
+        .where(profile_cards)
+        .order_by(Card.updated_at.desc(), Card.id.desc())
+    ).all()
+    dashboard_cards: list[DashboardCardRead] = []
+    for row in card_rows:
+        card_correct = int(row[6])
+        card_incorrect = int(row[7])
+        card_graded = card_correct + card_incorrect
+        dashboard_cards.append(
+            DashboardCardRead(
+                card_id=int(row[0]),
+                card_title=str(row[1]),
+                problem_count=int(row[2]),
+                note_count=int(row[3]),
+                workbook_count=int(row[4]),
+                completed_session_count=int(row[5]),
+                correct_count=card_correct,
+                incorrect_count=card_incorrect,
+                accuracy_rate=round(card_correct * 100 / card_graded) if card_graded else 0,
+                unresolved_wrong_answer_count=int(row[8]),
+            )
+        )
+
+    recent_rows = db.execute(
+        select(StudySession, Card.id, Card.title, Workbook.id, Workbook.title)
+        .join(Card, Card.id == StudySession.card_id)
+        .outerjoin(Workbook, Workbook.id == StudySession.workbook_id)
+        .where(profile_cards, StudySession.completed_at.is_not(None))
+        .order_by(StudySession.completed_at.desc())
+        .limit(6)
+    ).all()
+    recent_studies = [
+        RecentStudyRead(
+            session_id=session.id,
+            card_id=int(card_id),
+            card_title=str(card_title),
+            workbook_id=int(workbook_id) if workbook_id is not None else None,
+            workbook_title=str(workbook_title) if workbook_title is not None else None,
+            attempt_number=session.attempt_number,
+            problem_count=len(session.problem_ids),
+            correct_count=session.result_count("correct"),
+            incorrect_count=session.result_count("incorrect"),
+            ungraded_count=session.result_count("ungraded"),
+            completed_at=session.completed_at,
+        )
+        for session, card_id, card_title, workbook_id, workbook_title in recent_rows
+        if session.completed_at is not None
+    ]
+
     return DashboardRead(
         profile=profile,
         card_count=card_count,
@@ -133,4 +245,6 @@ def get_dashboard(profile: CurrentProfile, db: DatabaseSession) -> DashboardRead
         unresolved_wrong_answer_count=unresolved_wrong_answer_count,
         today_studied_count=today_studied_count,
         weak_topics=weak_topics[:3],
+        cards=dashboard_cards,
+        recent_studies=recent_studies,
     )

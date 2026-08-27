@@ -79,3 +79,21 @@ def test_dashboard_aggregates_the_local_profile_study_data(client: TestClient) -
     assert payload["today_studied_count"] == 1
     assert payload["weak_topics"][0]["topic_name"] == "데이터 모델링"
     assert payload["weak_topics"][0]["accuracy_rate"] == 0
+    assert payload["cards"] == [
+        {
+            "card_id": card_id,
+            "card_title": "SQLD",
+            "problem_count": 1,
+            "note_count": 0,
+            "workbook_count": 0,
+            "completed_session_count": 1,
+            "correct_count": 0,
+            "incorrect_count": 1,
+            "accuracy_rate": 0,
+            "unresolved_wrong_answer_count": 1,
+        }
+    ]
+    assert payload["recent_studies"][0]["card_id"] == card_id
+    assert payload["recent_studies"][0]["workbook_id"] is None
+    assert payload["recent_studies"][0]["problem_count"] == 1
+    assert payload["recent_studies"][0]["incorrect_count"] == 1
