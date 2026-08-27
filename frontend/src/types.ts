@@ -33,6 +33,33 @@ export interface DashboardWeakTopic {
   accuracy_rate: number;
 }
 
+export interface DashboardCard {
+  card_id: number;
+  card_title: string;
+  problem_count: number;
+  note_count: number;
+  workbook_count: number;
+  completed_session_count: number;
+  correct_count: number;
+  incorrect_count: number;
+  accuracy_rate: number;
+  unresolved_wrong_answer_count: number;
+}
+
+export interface DashboardRecentStudy {
+  session_id: string;
+  card_id: number;
+  card_title: string;
+  workbook_id: number | null;
+  workbook_title: string | null;
+  attempt_number: number;
+  problem_count: number;
+  correct_count: number;
+  incorrect_count: number;
+  ungraded_count: number;
+  completed_at: string;
+}
+
 export interface Dashboard {
   profile: Profile;
   card_count: number;
@@ -47,6 +74,8 @@ export interface Dashboard {
   unresolved_wrong_answer_count: number;
   today_studied_count: number;
   weak_topics: DashboardWeakTopic[];
+  cards: DashboardCard[];
+  recent_studies: DashboardRecentStudy[];
 }
 
 export interface CardInput {

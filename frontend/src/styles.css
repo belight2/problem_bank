@@ -459,6 +459,7 @@ main {
 .dashboard-welcome,
 .daily-goal-card,
 .dashboard-stat-grid article,
+.dashboard-overview-panel,
 .weak-topic-panel {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -542,13 +543,13 @@ main {
 .dashboard-stat-grid {
   display: grid;
   margin-top: 1.25rem;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1rem;
 }
 
 .dashboard-stat-grid article {
   display: flex;
-  min-height: 150px;
+  min-height: 132px;
   padding: 1.35rem;
   flex-direction: column;
 }
@@ -562,6 +563,309 @@ main {
 .dashboard-stat-grid article > small {
   color: var(--text-faint);
   font-size: 0.75rem;
+}
+
+.dashboard-overview-grid {
+  display: grid;
+  margin-top: 1.25rem;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 1.25rem;
+}
+
+.dashboard-overview-panel {
+  min-width: 0;
+  padding: 1.5rem;
+}
+
+.dashboard-panel-heading,
+.card-dashboard-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.dashboard-panel-heading h2,
+.card-dashboard-panel-heading h2 {
+  margin: 0;
+}
+
+.dashboard-panel-heading > span,
+.card-dashboard-panel-heading > button {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.card-dashboard-panel-heading > button {
+  padding: 0.3rem 0;
+  border: 0;
+  background: transparent;
+  transition: color 100ms ease, transform 100ms ease;
+}
+
+.card-dashboard-panel-heading > button:hover {
+  color: var(--primary-strong);
+  transform: translateY(-1px);
+}
+
+.dashboard-activity-list,
+.dashboard-card-summary-list,
+.card-dashboard-workbooks,
+.card-topic-progress-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.dashboard-activity-list > button,
+.dashboard-card-summary-list > button,
+.card-dashboard-workbooks > button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  text-align: left;
+  transition: transform 100ms ease, border-color 100ms ease, background-color 100ms ease;
+}
+
+.dashboard-activity-list > button:hover,
+.dashboard-card-summary-list > button:hover,
+.card-dashboard-workbooks > button:hover {
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+  background: var(--primary-soft);
+  transform: translateY(-1px);
+}
+
+.dashboard-activity-list > button:active,
+.dashboard-card-summary-list > button:active,
+.card-dashboard-workbooks > button:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.dashboard-activity-list button > span,
+.dashboard-card-summary-list button > span,
+.card-dashboard-workbooks button > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.dashboard-activity-list button > span:first-child,
+.dashboard-card-summary-list button > span:first-child,
+.card-dashboard-workbooks button > span:first-child {
+  flex: 1;
+}
+
+.dashboard-activity-list strong,
+.dashboard-card-summary-list strong,
+.card-dashboard-workbooks strong {
+  overflow: hidden;
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-activity-list small,
+.dashboard-card-summary-list small,
+.card-dashboard-workbooks small {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-activity-score,
+.dashboard-card-summary-list button > span:last-child,
+.card-dashboard-workbooks button > span:last-child {
+  flex: 0 0 auto;
+  justify-items: end;
+  text-align: right;
+}
+
+.dashboard-activity-score > strong,
+.dashboard-card-summary-list button > span:last-child > strong {
+  color: var(--primary-strong);
+}
+
+.dashboard-panel-empty,
+.card-dashboard-panel-empty {
+  display: grid;
+  min-height: 130px;
+  margin: 0;
+  place-items: center;
+  align-content: center;
+  gap: 0.75rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.card-dashboard {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.card-dashboard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.card-dashboard-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.card-dashboard-stat-grid article,
+.card-dashboard-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-dashboard-stat-grid article {
+  display: flex;
+  min-height: 145px;
+  padding: 1.35rem;
+  flex-direction: column;
+}
+
+.card-dashboard-stat-grid article > span {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.card-dashboard-stat-grid article > strong {
+  margin-top: auto;
+  font-size: 2rem;
+  letter-spacing: -0.05em;
+}
+
+.card-dashboard-stat-grid article > small,
+.card-dashboard-stat-grid article > button {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+
+.card-dashboard-stat-grid article > button {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-weight: 700;
+  transition: color 100ms ease, transform 100ms ease;
+}
+
+.card-dashboard-stat-grid article > button:hover {
+  color: var(--primary-strong);
+  transform: translateY(-1px);
+}
+
+.card-dashboard-main-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.card-dashboard-panel {
+  min-width: 0;
+  padding: 1.5rem;
+}
+
+.card-dashboard-panel-empty > button {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--primary-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: transform 100ms ease, border-color 100ms ease;
+}
+
+.card-dashboard-panel-empty > button:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.card-topic-progress-list > div {
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-topic-progress-list > div:last-child {
+  border-bottom: 0;
+}
+
+.card-topic-progress-list > div > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card-topic-progress-list strong,
+.card-topic-progress-list span {
+  font-size: 0.825rem;
+}
+
+.card-topic-progress-list span {
+  color: var(--primary-strong);
+  font-weight: 750;
+}
+
+.card-topic-progress-track {
+  height: 7px;
+  overflow: hidden;
+  margin: 0.55rem 0 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.card-topic-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--primary-strong));
+  transition: width 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card-topic-progress-list small {
+  color: var(--text-faint);
+  font-size: 0.7rem;
+}
+
+.card-dashboard-skeleton {
+  display: grid;
+  margin-top: 1.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.card-dashboard-skeleton > div {
+  min-height: 180px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent),
+    var(--surface-muted);
+  background-size: 45% 100%, 100% 100%;
+  animation: loading-bar 1.2s ease-in-out infinite;
 }
 
 .weak-topic-panel {
@@ -3881,11 +4185,14 @@ footer {
 
 @media (max-width: 900px) {
   .dashboard-hero,
-  .weak-topic-panel {
+  .dashboard-overview-grid,
+  .weak-topic-panel,
+  .card-dashboard-main-grid {
     grid-template-columns: 1fr;
   }
 
-  .dashboard-stat-grid {
+  .dashboard-stat-grid,
+  .card-dashboard-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -3910,7 +4217,9 @@ footer {
 
 @media (max-width: 768px) {
   .dashboard-skeleton,
-  .dashboard-stat-grid {
+  .dashboard-stat-grid,
+  .card-dashboard-stat-grid,
+  .card-dashboard-skeleton {
     grid-template-columns: 1fr;
   }
 
@@ -3922,6 +4231,26 @@ footer {
 
   .dashboard-stat-grid article {
     min-height: 125px;
+  }
+
+  .dashboard-overview-panel,
+  .card-dashboard-panel {
+    padding: 1.15rem;
+    border-radius: var(--radius);
+  }
+
+  .card-dashboard-stat-grid article {
+    min-height: 125px;
+    border-radius: var(--radius);
+  }
+
+  .card-dashboard-actions,
+  .card-dashboard-actions .button {
+    width: 100%;
+  }
+
+  .card-dashboard-actions {
+    flex-direction: column;
   }
 
   .topbar {
@@ -3982,11 +4311,12 @@ footer {
   .content-switch {
     display: flex;
     width: 100%;
+    flex-wrap: wrap;
     margin-top: 1rem;
   }
 
   .content-switch button {
-    flex: 1;
+    flex: 1 1 30%;
   }
 
   .content-section-heading {

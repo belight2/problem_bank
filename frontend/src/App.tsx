@@ -12,6 +12,7 @@ import {
   wrongAnswerApi,
 } from "./api/client";
 import { CardFormModal } from "./components/CardFormModal";
+import { CardDashboard } from "./components/CardDashboard";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { NoteArchive } from "./components/NoteArchive";
 import { NoteDetailModal } from "./components/NoteDetailModal";
@@ -49,6 +50,13 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   day: "numeric",
 });
 
+const activityDateFormatter = new Intl.DateTimeFormat("ko-KR", {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -71,8 +79,8 @@ function App() {
   const [workbooksLoading, setWorkbooksLoading] = useState(false);
   const [cardContentLoaded, setCardContentLoaded] = useState(false);
   const [contentView, setContentView] = useState<
-    "problems" | "notes" | "wrongAnswers" | "workbooks"
-  >("problems");
+    "dashboard" | "problems" | "notes" | "wrongAnswers" | "workbooks"
+  >("dashboard");
   const cardContentRequestId = useRef(0);
 
   const [cardEditor, setCardEditor] = useState<Card | null | undefined>(undefined);
@@ -482,7 +490,7 @@ function App() {
     setCardContentLoaded(false);
     setAppError(null);
     setSelectedCardId(cardId);
-    setContentView("problems");
+    setContentView("dashboard");
     window.scrollTo({ top: 0, behavior: "smooth" });
     void loadCardContent(cardId);
   };
@@ -506,7 +514,7 @@ function App() {
     setRandomStudyOpen(false);
     setWrongAnswerStudy(null);
     setWorkbookStudy(null);
-    setContentView("problems");
+    setContentView("dashboard");
     setNoteEditor(undefined);
     setNoteViewer(null);
     setSourceNoteForProblem(null);
@@ -608,6 +616,14 @@ function App() {
 
             <nav className="content-switch" aria-label="카드 콘텐츠">
               <button
+                className={contentView === "dashboard" ? "is-active" : ""}
+                type="button"
+                aria-current={contentView === "dashboard" ? "page" : undefined}
+                onClick={() => setContentView("dashboard")}
+              >
+                대시보드
+              </button>
+              <button
                 className={contentView === "problems" ? "is-active" : ""}
                 type="button"
                 aria-current={contentView === "problems" ? "page" : undefined}
@@ -641,7 +657,29 @@ function App() {
               </button>
             </nav>
 
-            {contentView === "problems" ? (
+            {contentView === "dashboard" ? (
+              <CardDashboard
+                topics={topics}
+                problems={problems}
+                notes={notes}
+                workbooks={workbooks}
+                wrongAnswers={wrongAnswers}
+                loading={
+                  topicsLoading
+                  || problemsLoading
+                  || notesLoading
+                  || workbooksLoading
+                  || wrongAnswersLoading
+                }
+                loaded={cardContentLoaded}
+                onCreateProblem={openProblemCreator}
+                onCreateNote={() => setNoteEditor(null)}
+                onCreateWorkbook={() => setRandomStudyOpen(true)}
+                onOpenProblems={() => setContentView("problems")}
+                onOpenWorkbooks={() => setContentView("workbooks")}
+                onOpenWrongAnswers={() => setContentView("wrongAnswers")}
+              />
+            ) : contentView === "problems" ? (
               <>
             <div className="problem-toolbar">
               <div className="toolbar-actions">
@@ -850,6 +888,21 @@ function App() {
 
                 <div className="dashboard-stat-grid" aria-label="전체 학습 현황">
                   <article>
+                    <span>공부 카드</span>
+                    <strong>{dashboard.card_count}</strong>
+                    <small>주제 {dashboard.topic_count}개</small>
+                  </article>
+                  <article>
+                    <span>전체 문제</span>
+                    <strong>{dashboard.problem_count}</strong>
+                    <small>노트 {dashboard.note_count}개</small>
+                  </article>
+                  <article>
+                    <span>문제집</span>
+                    <strong>{dashboard.workbook_count}</strong>
+                    <small>완료 {dashboard.completed_session_count}회</small>
+                  </article>
+                  <article>
                     <span>전체 정답률</span>
                     <strong>{dashboard.accuracy_rate}%</strong>
                     <small>정답 {dashboard.correct_count} · 오답 {dashboard.incorrect_count}</small>
@@ -857,18 +910,94 @@ function App() {
                   <article>
                     <span>복습할 오답</span>
                     <strong>{dashboard.unresolved_wrong_answer_count}</strong>
-                    <small>해결되지 않은 문제</small>
+                    <small>미해결 문제</small>
                   </article>
                   <article>
-                    <span>완료한 학습</span>
-                    <strong>{dashboard.completed_session_count}</strong>
-                    <small>채점을 마친 회차</small>
+                    <span>오늘 학습</span>
+                    <strong>{dashboard.today_studied_count}</strong>
+                    <small>목표 {profile.daily_goal}문제</small>
                   </article>
-                  <article>
-                    <span>학습 자료</span>
-                    <strong>{dashboard.problem_count}</strong>
-                    <small>카드 {dashboard.card_count} · 노트 {dashboard.note_count}</small>
-                  </article>
+                </div>
+
+                <div className="dashboard-overview-grid">
+                  <section className="dashboard-overview-panel">
+                    <div className="dashboard-panel-heading">
+                      <div>
+                        <p className="eyebrow">Recent study</p>
+                        <h2>최근 학습</h2>
+                      </div>
+                      <span>{dashboard.completed_session_count}회 완료</span>
+                    </div>
+                    {dashboard.recent_studies.length > 0 ? (
+                      <div className="dashboard-activity-list">
+                        {dashboard.recent_studies.map((study) => {
+                          const gradedCount = study.correct_count + study.incorrect_count;
+                          return (
+                            <button
+                              key={study.session_id}
+                              type="button"
+                              onClick={() => openCard(study.card_id)}
+                            >
+                              <span className="dashboard-activity-main">
+                                <strong>{study.workbook_title ?? "개별 학습"}</strong>
+                                <small>
+                                  {study.card_title} · {activityDateFormatter.format(new Date(study.completed_at))}
+                                </small>
+                              </span>
+                              <span className="dashboard-activity-score">
+                                <strong>
+                                  {gradedCount > 0
+                                    ? `${study.correct_count} / ${gradedCount}`
+                                    : "직접 채점"}
+                                </strong>
+                                <small>{study.problem_count}문제</small>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="dashboard-panel-empty">완료한 학습이 없습니다.</p>
+                    )}
+                  </section>
+
+                  <section className="dashboard-overview-panel">
+                    <div className="dashboard-panel-heading">
+                      <div>
+                        <p className="eyebrow">Card overview</p>
+                        <h2>카드별 현황</h2>
+                      </div>
+                      <span>{dashboard.card_count}개</span>
+                    </div>
+                    {dashboard.cards.length > 0 ? (
+                      <div className="dashboard-card-summary-list">
+                        {dashboard.cards.slice(0, 6).map((card) => (
+                          <button
+                            key={card.card_id}
+                            type="button"
+                            onClick={() => openCard(card.card_id)}
+                          >
+                            <span>
+                              <strong>{card.card_title}</strong>
+                              <small>
+                                문제 {card.problem_count} · 문제집 {card.workbook_count} · 노트 {card.note_count}
+                              </small>
+                            </span>
+                            <span>
+                              <strong>
+                                {card.correct_count + card.incorrect_count > 0
+                                  ? `${card.accuracy_rate}%`
+                                  : "-"}
+                              </strong>
+                              <small>오답 {card.unresolved_wrong_answer_count}</small>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="dashboard-panel-empty">등록된 카드가 없습니다.</p>
+                    )}
+                  </section>
                 </div>
 
                 <section className="weak-topic-panel">
