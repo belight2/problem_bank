@@ -115,6 +115,42 @@ export interface GraphRetryResult {
   retry_event: GraphOutboxEvent;
 }
 
+export type KnowledgeGraphNodeType =
+  | "card"
+  | "topic"
+  | "problem"
+  | "note"
+  | "concept"
+  | "misconception"
+  | "unknown";
+
+export interface KnowledgeGraphNode {
+  id: string;
+  iri: string;
+  type: KnowledgeGraphNodeType;
+  label: string;
+  external_id: number | null;
+  presented_count: number | null;
+  correct_count: number | null;
+  incorrect_count: number | null;
+}
+
+export interface KnowledgeGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  predicate: string;
+  label: string;
+}
+
+export interface KnowledgeGraph {
+  card_id: number;
+  nodes: KnowledgeGraphNode[];
+  edges: KnowledgeGraphEdge[];
+  truncated: boolean;
+}
+
 export interface CardInput {
   title: string;
   description: string | null;

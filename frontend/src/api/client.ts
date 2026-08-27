@@ -5,6 +5,7 @@ import type {
   GraphOutboxEvent,
   GraphRetryResult,
   GraphSyncStatus,
+  KnowledgeGraph,
   Note,
   NoteInput,
   Problem,
@@ -100,6 +101,11 @@ export const graphSyncApi = {
     request<GraphRetryResult>(`/graph-sync/events/${eventId}/retry`, {
       method: "POST",
     }),
+};
+
+export const knowledgeGraphApi = {
+  get: (cardId: number, signal?: AbortSignal) =>
+    request<KnowledgeGraph>(`/cards/${cardId}/knowledge-graph`, { signal }),
 };
 
 export const topicApi = {

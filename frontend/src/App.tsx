@@ -16,6 +16,7 @@ import { CardFormModal } from "./components/CardFormModal";
 import { CardDashboard } from "./components/CardDashboard";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { GraphSyncModal } from "./components/GraphSyncModal";
+import { KnowledgeGraphModal } from "./components/KnowledgeGraphModal";
 import { NoteArchive } from "./components/NoteArchive";
 import { NoteDetailModal } from "./components/NoteDetailModal";
 import { NoteFormModal } from "./components/NoteFormModal";
@@ -65,6 +66,7 @@ function App() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [graphSyncOpen, setGraphSyncOpen] = useState(false);
+  const [knowledgeGraphOpen, setKnowledgeGraphOpen] = useState(false);
   const [graphSyncStatus, setGraphSyncStatus] = useState<GraphSyncStatus | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -532,6 +534,7 @@ function App() {
     setWorkbooksLoading(false);
     setCardContentLoaded(false);
     setTopicManagerOpen(false);
+    setKnowledgeGraphOpen(false);
     setRandomStudyOpen(false);
     setWrongAnswerStudy(null);
     setWorkbookStudy(null);
@@ -653,6 +656,19 @@ function App() {
                 {selectedCard.description && <p>{selectedCard.description}</p>}
               </div>
               <div className="detail-actions">
+                <button
+                  className="button button--ghost knowledge-graph-open"
+                  type="button"
+                  onClick={() => setKnowledgeGraphOpen(true)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="6" cy="12" r="2.5" />
+                    <circle cx="18" cy="6" r="2.5" />
+                    <circle cx="18" cy="18" r="2.5" />
+                    <path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6" />
+                  </svg>
+                  지식 그래프
+                </button>
                 <button className="button button--ghost" type="button" onClick={() => setCardEditor(selectedCard)}>
                   카드 수정
                 </button>
@@ -1138,6 +1154,12 @@ function App() {
           initialStatus={graphSyncStatus}
           onStatusChange={setGraphSyncStatus}
           onClose={() => setGraphSyncOpen(false)}
+        />
+      )}
+      {knowledgeGraphOpen && selectedCard && (
+        <KnowledgeGraphModal
+          card={selectedCard}
+          onClose={() => setKnowledgeGraphOpen(false)}
         />
       )}
       {cardEditor !== undefined && (

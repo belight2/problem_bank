@@ -1271,6 +1271,20 @@ main {
   gap: 0.65rem;
 }
 
+.knowledge-graph-open {
+  gap: 0.5rem;
+}
+
+.knowledge-graph-open svg {
+  width: 18px;
+  height: 18px;
+  fill: var(--surface);
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
 .problem-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -2289,6 +2303,261 @@ footer {
 .graph-sync-panel {
   display: grid;
   gap: 1.25rem;
+}
+
+.knowledge-graph-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.knowledge-graph-card-name {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.knowledge-graph-card-name span {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.knowledge-graph-card-name strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-graph-refresh {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--primary-strong);
+  transition: transform 100ms ease, border-color 100ms ease, background-color 100ms ease;
+}
+
+.knowledge-graph-refresh:not(:disabled):hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  transform: translateY(-1px);
+}
+
+.knowledge-graph-refresh:not(:disabled):active {
+  transform: translateY(1px) scale(0.96);
+}
+
+.knowledge-graph-refresh svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.knowledge-graph-refresh.is-loading svg {
+  animation: knowledge-graph-spin 900ms linear infinite;
+}
+
+.knowledge-graph-skeleton,
+.knowledge-graph-canvas-shell {
+  position: relative;
+  min-height: 360px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(34, 197, 94, 0.08), transparent 12rem),
+    var(--surface-muted);
+}
+
+.knowledge-graph-skeleton-node {
+  position: absolute;
+  z-index: 1;
+  width: 84px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.86), transparent),
+    var(--surface);
+  background-size: 50% 100%, 100% 100%;
+  animation: loading-bar 1.2s ease-in-out infinite;
+}
+
+.knowledge-graph-skeleton-node.is-left {
+  top: 48%;
+  left: 12%;
+}
+
+.knowledge-graph-skeleton-node.is-center {
+  top: 25%;
+  left: calc(50% - 42px);
+}
+
+.knowledge-graph-skeleton-node.is-right {
+  right: 12%;
+  bottom: 22%;
+}
+
+.knowledge-graph-skeleton-edge {
+  position: absolute;
+  top: 48%;
+  left: 25%;
+  width: 28%;
+  height: 1px;
+  background: var(--border-strong);
+  transform-origin: left center;
+}
+
+.knowledge-graph-skeleton-edge.is-left {
+  transform: rotate(-19deg);
+}
+
+.knowledge-graph-skeleton-edge.is-right {
+  top: 36%;
+  left: 56%;
+  transform: rotate(27deg);
+}
+
+.knowledge-graph-state {
+  display: grid;
+  min-height: 360px;
+  place-items: center;
+  align-content: center;
+  gap: 0.65rem;
+  padding: 2rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  text-align: center;
+}
+
+.knowledge-graph-state svg,
+.knowledge-graph-canvas-shell > svg {
+  width: 42px;
+  height: 42px;
+  padding: 0.55rem;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  fill: var(--surface);
+  stroke: var(--primary-strong);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.knowledge-graph-state p {
+  max-width: 48ch;
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.8125rem;
+}
+
+.knowledge-graph-state.is-error {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: var(--danger-soft);
+}
+
+.knowledge-graph-state.is-error svg {
+  background: var(--surface);
+  fill: none;
+  stroke: var(--danger-strong);
+}
+
+.knowledge-graph-state .button {
+  margin-top: 0.35rem;
+}
+
+.knowledge-graph-summary {
+  display: grid;
+  grid-template-columns: 100px 100px minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.knowledge-graph-summary > div {
+  display: grid;
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  gap: 0.1rem;
+}
+
+.knowledge-graph-summary > div > span {
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.knowledge-graph-summary > div > strong {
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.knowledge-graph-summary .knowledge-graph-node-types {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.knowledge-graph-node-types > span {
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.knowledge-graph-node-types > span.is-card,
+.knowledge-graph-node-types > span.is-concept {
+  background: var(--primary-soft);
+  color: var(--primary-ink);
+}
+
+.knowledge-graph-node-types > span.is-misconception {
+  background: var(--danger-soft);
+  color: var(--danger-strong);
+}
+
+.knowledge-graph-limit-notice {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: #7c4a03;
+  font-size: 0.78rem;
+}
+
+.knowledge-graph-canvas-shell {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.7rem;
+  color: var(--text-soft);
+}
+
+.knowledge-graph-canvas-shell > span {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+@keyframes knowledge-graph-spin {
+  to { transform: rotate(360deg); }
 }
 
 .graph-sync-refresh {
@@ -4599,6 +4868,20 @@ footer {
 
   .graph-sync-event-main .button {
     width: 100%;
+  }
+
+  .knowledge-graph-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .knowledge-graph-summary .knowledge-graph-node-types {
+    grid-column: 1 / -1;
+  }
+
+  .knowledge-graph-skeleton,
+  .knowledge-graph-state,
+  .knowledge-graph-canvas-shell {
+    min-height: 300px;
   }
 
   .dashboard-stat-grid article {
