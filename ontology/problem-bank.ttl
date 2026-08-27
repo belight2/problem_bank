@@ -371,3 +371,21 @@ pb:problemTypeCode
     rdfs:domain pb:ProblemType ;
     rdfs:range xsd:string ;
     rdfs:label "문제 유형 코드"@ko .
+
+pb:presentedCount
+    a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:domain pb:Problem ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:label "출제 횟수"@ko .
+
+pb:correctCount
+    a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:domain pb:Problem ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:label "정답 횟수"@ko .
+
+pb:incorrectCount
+    a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:domain pb:Problem ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:label "오답 횟수"@ko .

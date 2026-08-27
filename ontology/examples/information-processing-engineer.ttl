@@ -94,6 +94,9 @@ pbr:problem-1
     pb:inCard pbr:card-1 ;
     pb:classifiedUnder pbr:topic-1 ;
     pb:hasProblemType pb:ShortAnswerProblemType ;
+    pb:presentedCount "0"^^xsd:nonNegativeInteger ;
+    pb:correctCount "0"^^xsd:nonNegativeInteger ;
+    pb:incorrectCount "0"^^xsd:nonNegativeInteger ;
     pb:primaryConcept pbr:concept-third-normal-form ;
     pb:supportingConcept pbr:concept-second-normal-form ;
     pb:derivedFrom pbr:note-1 ;

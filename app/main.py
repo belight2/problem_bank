@@ -1,3 +1,7 @@
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from sqlalchemy import text
 
@@ -13,8 +17,25 @@ from app.api.routes.topics import router as topics_router
 from app.api.routes.workbooks import router as workbooks_router
 from app.api.routes.wrong_answers import router as wrong_answers_router
 from app.core.config import get_settings
+from app.workers.graph_sync import run_graph_sync_worker
 
-app = FastAPI(title=get_settings().app_name)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    settings = get_settings()
+    stop_event = asyncio.Event()
+    worker_task: asyncio.Task[None] | None = None
+    if settings.graph_sync_enabled:
+        worker_task = asyncio.create_task(run_graph_sync_worker(stop_event, settings))
+    try:
+        yield
+    finally:
+        stop_event.set()
+        if worker_task is not None:
+            await worker_task
+
+
+app = FastAPI(title=get_settings().app_name, lifespan=lifespan)
 app.include_router(profile_router)
 app.include_router(dashboard_router)
 app.include_router(cards_router)

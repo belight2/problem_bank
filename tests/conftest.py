@@ -1,3 +1,4 @@
+import os
 from collections.abc import Generator
 
 import pytest
@@ -6,9 +7,11 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.base import Base
-from app.db.session import get_db
-from app.main import app
+os.environ["GRAPH_SYNC_ENABLED"] = "false"
+
+from app.db.base import Base  # noqa: E402
+from app.db.session import get_db  # noqa: E402
+from app.main import app  # noqa: E402
 
 
 @pytest.fixture

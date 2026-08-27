@@ -46,6 +46,21 @@ docker compose up -d fuseki
 
 `problem-bank.ttl`과 `shapes.ttl`은 시작할 때마다 읽으며, 예제 데이터는 `fuseki-data` 볼륨에 최초 한 번만 적재합니다. dataset에는 OWL Micro 추론기가 적용됩니다. SHACL 규칙은 Fuseki가 쓰기 요청마다 자동 검증하는 구조가 아니며, 현재는 `tests/test_ontology.py`에서 검증합니다.
 
+## 애플리케이션 데이터 동기화
+
+FastAPI는 PostgreSQL의 `graph_outbox`를 읽는 백그라운드 작업자를 실행합니다. 카드·주제·문제·노트와 문제별 출제·정답·오답 횟수를 안정적인 리소스 IRI로 변환한 뒤 Fuseki의 SPARQL Update endpoint에 반영합니다.
+
+```text
+card-{id}
+topic-{id}
+problem-{id}
+note-{id}
+```
+
+동일한 리소스의 갱신은 기존 속성을 지우고 현재 상태를 다시 넣는 멱등 방식입니다. 전송 성공 뒤 DB 상태 기록 전에 프로세스가 종료되어 같은 이벤트가 다시 처리되더라도 결과가 중복되지 않습니다. 문제의 정답·선택지와 노트의 Markdown 본문은 RDF payload에 포함하지 않습니다.
+
+현재 관계형 모델에는 개념을 직접 연결하는 기능이 없으므로 `primaryConcept`는 선택 관계로 검증합니다. 이후 문제·노트에 개념 연결 기능을 추가하면 이 관계를 Outbox payload와 RDF 변환에도 포함할 수 있습니다.
+
 예제 데이터에서 주요 개념 관계를 조회하는 SPARQL은 다음과 같습니다.
 
 ```sparql

@@ -96,7 +96,11 @@ docker compose restart fuseki
 
 Fuseki에서는 OWL Micro 추론을 적용합니다. SHACL 파일은 조회할 수 있도록 함께 불러오지만 요청 데이터에 대한 SHACL 검증을 자동으로 강제하지는 않습니다. 저장소의 온톨로지 테스트가 SHACL 규칙을 검증합니다.
 
-카드·주제·문제·노트 CRUD와 문제 풀이 통계 변경은 PostgreSQL의 `graph_outbox`에 Fuseki 동기화 이벤트를 같은 트랜잭션으로 기록합니다. 현재 단계에서는 이벤트를 안전하게 적재하는 부분까지만 구현되어 있으므로, 실제 사용자 데이터가 Fuseki에 반영되려면 Outbox 처리 작업자가 추가로 필요합니다.
+카드·주제·문제·노트 CRUD와 문제 풀이 통계 변경은 PostgreSQL의 `graph_outbox`에 Fuseki 동기화 이벤트를 같은 트랜잭션으로 기록합니다. FastAPI가 실행되면 백그라운드 작업자가 이벤트 순서대로 SPARQL Update를 전송하고, 성공한 이벤트를 `completed`로 변경합니다. Fuseki 연결이나 전송에 실패하면 지수 백오프로 재시도하며, 설정한 최대 횟수를 넘긴 이벤트는 `failed`로 남겨 뒤 이벤트 처리를 막지 않습니다.
+
+동기화 설정은 `.env`의 `FUSEKI_*`와 `GRAPH_SYNC_*` 항목에서 바꿀 수 있습니다. 작업자를 잠시 끄려면 `GRAPH_SYNC_ENABLED=false`로 설정합니다. 문제의 정답·선택지와 노트 본문은 그래프에 보내지 않고, 관계 탐색에 필요한 제목·주제·문제 유형·출제 통계·출처 노트 관계만 저장합니다.
+
+Outbox 도입 전에 이미 PostgreSQL에 있던 데이터는 자동으로 소급 적재되지 않습니다. 기존 데이터 전체를 Fuseki에 다시 구성하는 기능은 별도 작업으로 추가해야 합니다.
 
 ### 3. Python 패키지 설치
 

@@ -129,11 +129,28 @@ pb:ProblemShape
         sh:message "문제는 지원하는 문제 유형을 하나 가져야 합니다."@ko
     ] ;
     sh:property [
-        sh:path pb:primaryConcept ;
+        sh:path pb:presentedCount ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger
+    ] ;
+    sh:property [
+        sh:path pb:correctCount ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger
+    ] ;
+    sh:property [
+        sh:path pb:incorrectCount ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger
+    ] ;
+    sh:property [
+        sh:path pb:primaryConcept ;
+        sh:maxCount 1 ;
         sh:class pb:Concept ;
-        sh:message "문제는 핵심 개념을 정확히 하나 가져야 합니다."@ko
+        sh:message "문제의 핵심 개념은 최대 하나만 연결할 수 있습니다."@ko
     ] ;
     sh:property [
         sh:path pb:supportingConcept ;
