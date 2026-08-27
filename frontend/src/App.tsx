@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   cardApi,
+  conceptApi,
   dashboardApi,
   getErrorMessage,
   graphSyncApi,
@@ -15,6 +16,7 @@ import {
 import { CardFormModal } from "./components/CardFormModal";
 import { CardDashboard } from "./components/CardDashboard";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { ConceptManagementModal } from "./components/ConceptManagementModal";
 import { GraphSyncModal } from "./components/GraphSyncModal";
 import { KnowledgeGraphModal } from "./components/KnowledgeGraphModal";
 import { NoteArchive } from "./components/NoteArchive";
@@ -32,6 +34,7 @@ import { problemTypeLabels } from "./problemTypes";
 import type {
   Card,
   CardInput,
+  Concept,
   Dashboard,
   GraphSyncStatus,
   Note,
@@ -76,6 +79,8 @@ function App() {
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
+  const [concepts, setConcepts] = useState<Concept[]>([]);
+  const [conceptsLoading, setConceptsLoading] = useState(false);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [problemsLoading, setProblemsLoading] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -102,6 +107,7 @@ function App() {
   const [wrongAnswerStudy, setWrongAnswerStudy] = useState<WrongAnswerStudyRequest | null>(null);
   const [workbookStudy, setWorkbookStudy] = useState<WorkbookStudyRequest | null>(null);
   const [topicManagerOpen, setTopicManagerOpen] = useState(false);
+  const [conceptManagerOpen, setConceptManagerOpen] = useState(false);
 
   const selectedCard = useMemo(
     () => cards.find((card) => card.id === selectedCardId) ?? null,
@@ -139,6 +145,7 @@ function App() {
     const requestId = ++cardContentRequestId.current;
     setCardContentLoaded(false);
     setTopicsLoading(true);
+    setConceptsLoading(true);
     setProblemsLoading(true);
     setNotesLoading(true);
     setWrongAnswersLoading(true);
@@ -147,12 +154,14 @@ function App() {
     try {
       const [
         loadedTopics,
+        loadedConcepts,
         loadedProblems,
         loadedNotes,
         loadedWrongAnswers,
         loadedWorkbooks,
       ] = await Promise.all([
           topicApi.list(cardId),
+          conceptApi.listForCard(cardId),
           problemApi.list(cardId),
           noteApi.list(cardId),
           wrongAnswerApi.list(cardId),
@@ -160,6 +169,7 @@ function App() {
         ]);
       if (requestId !== cardContentRequestId.current) return;
       setTopics(loadedTopics);
+      setConcepts(loadedConcepts);
       setProblems(loadedProblems);
       setNotes(loadedNotes);
       setWrongAnswers(loadedWrongAnswers);
@@ -171,6 +181,7 @@ function App() {
     } finally {
       if (requestId === cardContentRequestId.current) {
         setTopicsLoading(false);
+        setConceptsLoading(false);
         setProblemsLoading(false);
         setNotesLoading(false);
         setWrongAnswersLoading(false);
@@ -446,11 +457,13 @@ function App() {
       cardContentRequestId.current += 1;
       setSelectedCardId(null);
       setTopics([]);
+      setConcepts([]);
       setProblems([]);
       setNotes([]);
       setWrongAnswers([]);
       setWorkbooks([]);
       setTopicsLoading(false);
+      setConceptsLoading(false);
       setProblemsLoading(false);
       setNotesLoading(false);
       setWrongAnswersLoading(false);
@@ -501,11 +514,13 @@ function App() {
 
   const openCard = (cardId: number) => {
     setTopics([]);
+    setConcepts([]);
     setProblems([]);
     setNotes([]);
     setWrongAnswers([]);
     setWorkbooks([]);
     setTopicsLoading(true);
+    setConceptsLoading(true);
     setProblemsLoading(true);
     setNotesLoading(true);
     setWrongAnswersLoading(true);
@@ -523,17 +538,20 @@ function App() {
     setAppError(null);
     setSelectedCardId(null);
     setTopics([]);
+    setConcepts([]);
     setProblems([]);
     setNotes([]);
     setWrongAnswers([]);
     setWorkbooks([]);
     setTopicsLoading(false);
+    setConceptsLoading(false);
     setProblemsLoading(false);
     setNotesLoading(false);
     setWrongAnswersLoading(false);
     setWorkbooksLoading(false);
     setCardContentLoaded(false);
     setTopicManagerOpen(false);
+    setConceptManagerOpen(false);
     setKnowledgeGraphOpen(false);
     setRandomStudyOpen(false);
     setWrongAnswerStudy(null);
@@ -553,6 +571,47 @@ function App() {
     }
     setSourceNoteForProblem(null);
     setProblemEditor(null);
+  };
+
+  const handleConceptsChanged = (nextConcepts: Concept[]) => {
+    const nextConceptIds = new Set(nextConcepts.map((concept) => concept.id));
+    setConcepts(nextConcepts);
+    setProblems((current) =>
+      current.map((problem) => ({
+        ...problem,
+        primary_concept_id:
+          problem.primary_concept_id !== null
+          && nextConceptIds.has(problem.primary_concept_id)
+            ? problem.primary_concept_id
+            : null,
+        supporting_concept_ids: problem.supporting_concept_ids.filter(
+          (conceptId) => nextConceptIds.has(conceptId),
+        ),
+      })),
+    );
+    setNotes((current) =>
+      current.map((note) => ({
+        ...note,
+        concept_ids: note.concept_ids.filter((conceptId) => nextConceptIds.has(conceptId)),
+      })),
+    );
+    setWrongAnswers((current) =>
+      current.map((wrongAnswer) => ({
+        ...wrongAnswer,
+        problem: {
+          ...wrongAnswer.problem,
+          primary_concept_id:
+            wrongAnswer.problem.primary_concept_id !== null
+            && nextConceptIds.has(wrongAnswer.problem.primary_concept_id)
+              ? wrongAnswer.problem.primary_concept_id
+              : null,
+          supporting_concept_ids:
+            wrongAnswer.problem.supporting_concept_ids.filter(
+              (conceptId) => nextConceptIds.has(conceptId),
+            ),
+        },
+      })),
+    );
   };
 
   const openProblemCreatorFromNote = (note: Note) => {
@@ -657,6 +716,14 @@ function App() {
               </div>
               <div className="detail-actions">
                 <button
+                  className="button button--ghost"
+                  type="button"
+                  onClick={() => setConceptManagerOpen(true)}
+                  disabled={!cardContentLoaded || conceptsLoading}
+                >
+                  개념 관리
+                </button>
+                <button
                   className="button button--ghost knowledge-graph-open"
                   type="button"
                   onClick={() => setKnowledgeGraphOpen(true)}
@@ -724,6 +791,7 @@ function App() {
             {contentView === "dashboard" ? (
               <CardDashboard
                 topics={topics}
+                concepts={concepts}
                 problems={problems}
                 notes={notes}
                 workbooks={workbooks}
@@ -804,6 +872,14 @@ function App() {
                         <span className="problem-type-badge">
                           {problemTypeLabels[problem.problem_type]}
                         </span>
+                        {problem.primary_concept_id !== null && (() => {
+                          const primaryConcept = concepts.find(
+                            (concept) => concept.id === problem.primary_concept_id,
+                          );
+                          return primaryConcept ? (
+                            <span className="concept-badge">{primaryConcept.name}</span>
+                          ) : null;
+                        })()}
                         <span className="problem-date">
                           {dateFormatter.format(new Date(problem.created_at))}
                         </span>
@@ -867,6 +943,7 @@ function App() {
                 </div>
                 <NoteArchive
                   notes={notes}
+                  concepts={concepts}
                   loading={notesLoading || topicsLoading}
                   loaded={cardContentLoaded}
                   onOpen={setNoteViewer}
@@ -1169,6 +1246,7 @@ function App() {
         <ProblemFormModal
           problem={problemEditor}
           topics={topics}
+          concepts={concepts}
           sourceNote={sourceNoteForProblem}
           onClose={() => {
             setProblemEditor(undefined);
@@ -1181,6 +1259,7 @@ function App() {
         <NoteFormModal
           note={noteEditor}
           topics={topics}
+          concepts={concepts}
           onClose={() => setNoteEditor(undefined)}
           onCreateTopic={handleCreateTopicForNote}
           onSubmit={handleNoteSubmit}
@@ -1189,6 +1268,7 @@ function App() {
       {noteViewer && (
         <NoteDetailModal
           note={noteViewer}
+          concepts={concepts}
           onClose={() => setNoteViewer(null)}
           onEdit={() => {
             setNoteEditor(noteViewer);
@@ -1199,6 +1279,14 @@ function App() {
             setNoteViewer(null);
           }}
           onCreateProblem={() => openProblemCreatorFromNote(noteViewer)}
+        />
+      )}
+      {conceptManagerOpen && selectedCard && (
+        <ConceptManagementModal
+          card={selectedCard}
+          concepts={concepts}
+          onChanged={handleConceptsChanged}
+          onClose={() => setConceptManagerOpen(false)}
         />
       )}
       {cardToDelete && (

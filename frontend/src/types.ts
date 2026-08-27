@@ -98,7 +98,7 @@ export type GraphOutboxStatus =
 
 export interface GraphOutboxEvent {
   id: number;
-  aggregate_type: "card" | "topic" | "problem" | "note";
+  aggregate_type: "card" | "topic" | "problem" | "note" | "concept";
   aggregate_id: string;
   event_type: "upsert" | "delete";
   status: GraphOutboxStatus;
@@ -168,6 +168,43 @@ export interface TopicInput {
   name: string;
 }
 
+export interface Concept {
+  id: number;
+  profile_id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConceptInput {
+  name: string;
+  description: string | null;
+}
+
+export type ConceptRelationType =
+  | "broader"
+  | "prerequisite"
+  | "related"
+  | "contrasts"
+  | "confused_with";
+
+export interface ConceptRelation {
+  id: number;
+  source_concept_id: number;
+  source_concept_name: string;
+  target_concept_id: number;
+  target_concept_name: string;
+  relation_type: ConceptRelationType;
+  created_at: string;
+}
+
+export interface ConceptRelationInput {
+  source_concept_id: number;
+  target_concept_id: number;
+  relation_type: ConceptRelationType;
+}
+
 export interface Note {
   id: number;
   card_id: number;
@@ -175,6 +212,7 @@ export interface Note {
   topic_name: string | null;
   title: string;
   content_markdown: string;
+  concept_ids: number[];
   created_at: string;
   updated_at: string;
 }
@@ -183,6 +221,7 @@ export interface NoteInput {
   topic_id: number | null;
   title: string;
   content_markdown: string;
+  concept_ids: number[];
 }
 
 export type ProblemType =
@@ -203,6 +242,8 @@ export interface Problem {
   answer: string | null;
   source_note_id: number | null;
   source_note_title: string | null;
+  primary_concept_id: number | null;
+  supporting_concept_ids: number[];
   presented_count: number;
   correct_count: number;
   incorrect_count: number;
@@ -217,6 +258,8 @@ export interface ProblemInput {
   choices: string[] | null;
   answer: string | null;
   source_note_id: number | null;
+  primary_concept_id: number | null;
+  supporting_concept_ids: number[];
 }
 
 export interface RandomProblemSet {

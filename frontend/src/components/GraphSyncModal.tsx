@@ -15,6 +15,7 @@ const eventTypeLabels: Record<GraphOutboxEvent["aggregate_type"], string> = {
   topic: "주제",
   problem: "문제",
   note: "노트",
+  concept: "개념",
 };
 
 const dateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {

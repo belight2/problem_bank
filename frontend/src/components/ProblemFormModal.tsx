@@ -8,13 +8,21 @@ import {
 
 import { getErrorMessage } from "../api/client";
 import { FILL_BLANK_MARKER, problemTypeOptions } from "../problemTypes";
-import type { Note, Problem, ProblemInput, ProblemType, Topic } from "../types";
+import type {
+  Concept,
+  Note,
+  Problem,
+  ProblemInput,
+  ProblemType,
+  Topic,
+} from "../types";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
 
 interface ProblemFormModalProps {
   problem: Problem | null;
   topics: Topic[];
+  concepts: Concept[];
   sourceNote: Note | null;
   onClose: () => void;
   onSubmit: (input: ProblemInput) => Promise<void>;
@@ -39,12 +47,14 @@ function splitFillBlankQuestion(question: string): [string, string] {
 export function ProblemFormModal({
   problem,
   topics,
+  concepts,
   sourceNote,
   onClose,
   onSubmit,
 }: ProblemFormModalProps) {
   const topicId = useId();
   const problemTypeId = useId();
+  const primaryConceptId = useId();
   const questionId = useId();
   const shortAnswerId = useId();
   const essayAnswerId = useId();
@@ -70,6 +80,12 @@ export function ProblemFormModal({
   const [selectedTopicId, setSelectedTopicId] = useState<number | "">(
     problem?.topic_id ?? sourceNote?.topic_id ?? "",
   );
+  const [selectedPrimaryConceptId, setSelectedPrimaryConceptId] = useState<
+    number | ""
+  >(problem?.primary_concept_id ?? "");
+  const [selectedSupportingConceptIds, setSelectedSupportingConceptIds] = useState<
+    number[]
+  >(problem?.supporting_concept_ids ?? []);
   const [sourceNoteConnected, setSourceNoteConnected] = useState(
     Boolean(problem?.source_note_id || sourceNote),
   );
@@ -368,6 +384,8 @@ export function ProblemFormModal({
         source_note_id: sourceNoteConnected
           ? (sourceNote?.id ?? problem?.source_note_id ?? null)
           : null,
+        primary_concept_id: selectedPrimaryConceptId || null,
+        supporting_concept_ids: selectedSupportingConceptIds,
       });
       if (!problem) {
         setQuestion("");
@@ -453,6 +471,65 @@ export function ProblemFormModal({
             ))}
           </select>
         </label>
+
+        <fieldset className="concept-link-fieldset">
+          <legend>개념 연결</legend>
+          {concepts.length > 0 ? (
+            <>
+              <label className="field" htmlFor={primaryConceptId}>
+                <span>핵심 개념 <small>선택</small></span>
+                <select
+                  id={primaryConceptId}
+                  value={selectedPrimaryConceptId}
+                  onChange={(event) => {
+                    const nextId = event.target.value ? Number(event.target.value) : "";
+                    setSelectedPrimaryConceptId(nextId);
+                    if (nextId !== "") {
+                      setSelectedSupportingConceptIds((current) =>
+                        current.filter((conceptId) => conceptId !== nextId),
+                      );
+                    }
+                  }}
+                  disabled={saving}
+                >
+                  <option value="">선택 안 함</option>
+                  {concepts.map((concept) => (
+                    <option key={concept.id} value={concept.id}>{concept.name}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="concept-check-field">
+                <span>보조 개념 <small>선택</small></span>
+                <div className="concept-check-list">
+                  {concepts
+                    .filter((concept) => concept.id !== selectedPrimaryConceptId)
+                    .map((concept) => {
+                      const checked = selectedSupportingConceptIds.includes(concept.id);
+                      return (
+                        <label className={checked ? "is-selected" : ""} key={concept.id}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setSelectedSupportingConceptIds((current) =>
+                                checked
+                                  ? current.filter((conceptId) => conceptId !== concept.id)
+                                  : [...current, concept.id],
+                              )
+                            }
+                            disabled={saving}
+                          />
+                          <span>{concept.name}</span>
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="concept-link-empty">카드에 등록된 개념이 없습니다.</p>
+          )}
+        </fieldset>
 
         <label className="field" htmlFor={problemTypeId}>
           <span>문제 유형</span>

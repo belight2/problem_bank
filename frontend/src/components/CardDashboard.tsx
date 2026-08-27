@@ -1,7 +1,8 @@
-import type { Note, Problem, Topic, Workbook, WrongAnswer } from "../types";
+import type { Concept, Note, Problem, Topic, Workbook, WrongAnswer } from "../types";
 
 interface CardDashboardProps {
   topics: Topic[];
+  concepts: Concept[];
   problems: Problem[];
   notes: Note[];
   workbooks: Workbook[];
@@ -30,6 +31,7 @@ function accuracy(correctCount: number, incorrectCount: number) {
 
 export function CardDashboard({
   topics,
+  concepts,
   problems,
   notes,
   workbooks,
@@ -125,7 +127,7 @@ export function CardDashboard({
         <article>
           <span>학습 자료</span>
           <strong>{problems.length}</strong>
-          <small>주제 {topics.length} · 노트 {notes.length}</small>
+          <small>주제 {topics.length} · 개념 {concepts.length} · 노트 {notes.length}</small>
         </article>
       </section>
 

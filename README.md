@@ -9,7 +9,7 @@ React (localhost:5571) → FastAPI (localhost:8899) → PostgreSQL (localhost:25
 
 처음 실행할 때 로그인 없이 사용할 단일 프로필을 등록하며, 카드와 학습 기록은 모두 이 프로필에 저장됩니다. 홈 대시보드에서는 하루 학습 목표, 전체 정답률, 미해결 오답, 완료한 학습 수와 취약 주제를 확인할 수 있습니다.
 
-카드를 만들고 그 안에 주제를 별도로 관리한 뒤 문제와 Markdown 공부 노트를 연결할 수 있습니다. 문제 생성 시 등록된 주제를 선택하므로 문제마다 주제 이름을 다시 입력하면서 생기는 오타를 방지합니다. 노트에서 바로 문제를 만들면 해당 노트가 선택적으로 문제의 참고 자료로 연결됩니다. 문제는 단답형, 주관식, 객관식, O/X, 빈칸 추론 형식으로 만들 수 있으며, 프론트엔드에서는 카드·주제·문제·노트 CRUD와 설정한 개수만큼 문제를 무작위로 제공하는 기능을 사용할 수 있습니다. 객관식과 O/X는 자동 채점하고 나머지 유형은 사용자가 직접 판정합니다.
+카드를 만들고 그 안에 주제와 개념을 관리한 뒤 문제와 Markdown 공부 노트를 연결할 수 있습니다. 개념은 여러 카드에서 재사용할 수 있고, 상위·선수·관련·비교·혼동 관계를 연결할 수 있습니다. 문제에는 핵심 개념 하나와 보조 개념을, 노트에는 해당 노트가 설명하는 개념을 선택적으로 연결합니다. 문제는 단답형, 주관식, 객관식, O/X, 빈칸 추론 형식으로 만들 수 있습니다.
 
 ## 기술 스택
 
@@ -96,9 +96,9 @@ docker compose restart fuseki
 
 Fuseki에서는 OWL Micro 추론을 적용합니다. SHACL 파일은 조회할 수 있도록 함께 불러오지만 요청 데이터에 대한 SHACL 검증을 자동으로 강제하지는 않습니다. 저장소의 온톨로지 테스트가 SHACL 규칙을 검증합니다.
 
-카드·주제·문제·노트 CRUD와 문제 풀이 통계 변경은 PostgreSQL의 `graph_outbox`에 Fuseki 동기화 이벤트를 같은 트랜잭션으로 기록합니다. FastAPI가 실행되면 백그라운드 작업자가 이벤트 순서대로 SPARQL Update를 전송하고, 성공한 이벤트를 `completed`로 변경합니다. Fuseki 연결이나 전송에 실패하면 지수 백오프로 재시도하며, 설정한 최대 횟수를 넘긴 이벤트는 `failed`로 남겨 뒤 이벤트 처리를 막지 않습니다.
+카드·주제·개념·문제·노트 CRUD, 개념 관계, 문제 풀이 통계 변경은 PostgreSQL의 `graph_outbox`에 Fuseki 동기화 이벤트를 같은 트랜잭션으로 기록합니다. FastAPI가 실행되면 백그라운드 작업자가 이벤트 순서대로 SPARQL Update를 전송하고, 성공한 이벤트를 `completed`로 변경합니다. Fuseki 연결이나 전송에 실패하면 지수 백오프로 재시도하며, 설정한 최대 횟수를 넘긴 이벤트는 `failed`로 남겨 뒤 이벤트 처리를 막지 않습니다.
 
-동기화 설정은 `.env`의 `FUSEKI_*`와 `GRAPH_SYNC_*` 항목에서 바꿀 수 있습니다. 작업자를 잠시 끄려면 `GRAPH_SYNC_ENABLED=false`로 설정합니다. 문제의 정답·선택지와 노트 본문은 그래프에 보내지 않고, 관계 탐색에 필요한 제목·주제·문제 유형·출제 통계·출처 노트 관계만 저장합니다.
+동기화 설정은 `.env`의 `FUSEKI_*`와 `GRAPH_SYNC_*` 항목에서 바꿀 수 있습니다. 작업자를 잠시 끄려면 `GRAPH_SYNC_ENABLED=false`로 설정합니다. 문제의 정답·선택지와 노트 본문은 그래프에 보내지 않고, 관계 탐색에 필요한 제목·주제·개념·개념 관계·문제 유형·출제 통계·출처 노트 관계만 저장합니다.
 
 Outbox 도입 전에 이미 PostgreSQL에 있던 데이터는 아래 명령으로 소급 적재 이벤트를 만들 수 있습니다.
 
@@ -106,7 +106,7 @@ Outbox 도입 전에 이미 PostgreSQL에 있던 데이터는 아래 명령으�
 uv run python -m app.commands.backfill_graph
 ```
 
-명령은 카드 → 주제 → 노트 → 문제 순서로 현재 상태를 Outbox에 넣습니다. FastAPI가 실행 중이면 백그라운드 작업자가 이어서 처리하고, 실행 중이 아니라면 다음 FastAPI 시작 때 처리합니다. 같은 명령을 다시 실행해도 RDF 결과가 중복되지 않습니다.
+명령은 개념 → 카드 → 주제 → 노트 → 문제 순서로 현재 상태를 Outbox에 넣습니다. FastAPI가 실행 중이면 백그라운드 작업자가 이어서 처리하고, 실행 중이 아니라면 다음 FastAPI 시작 때 처리합니다. 같은 명령을 다시 실행해도 RDF 결과가 중복되지 않습니다.
 
 동기화 상태와 실패 이벤트는 API에서 확인할 수 있습니다.
 
@@ -190,6 +190,16 @@ npm run dev
 | `GET` | `/cards/{card_id}/topics/{topic_id}` | 주제 단건 조회 |
 | `PATCH` | `/cards/{card_id}/topics/{topic_id}` | 주제 이름 수정 |
 | `DELETE` | `/cards/{card_id}/topics/{topic_id}` | 사용하지 않는 주제 삭제 |
+| `POST` | `/concepts` | 재사용 가능한 개념 생성 |
+| `GET` | `/concepts` | 프로필의 개념 목록 조회 |
+| `PATCH` | `/concepts/{concept_id}` | 개념 수정 |
+| `DELETE` | `/concepts/{concept_id}` | 개념과 모든 연결 삭제 |
+| `GET` | `/cards/{card_id}/concepts` | 카드에 연결된 개념 조회 |
+| `PUT` | `/cards/{card_id}/concepts/{concept_id}` | 기존 개념을 카드에 연결 |
+| `DELETE` | `/cards/{card_id}/concepts/{concept_id}` | 사용 중이 아닌 개념을 카드에서 해제 |
+| `GET` | `/concept-relations` | 개념 관계 목록 조회 |
+| `POST` | `/concept-relations` | 개념 관계 생성 |
+| `DELETE` | `/concept-relations/{relation_id}` | 개념 관계 삭제 |
 | `POST` | `/cards/{card_id}/notes` | Markdown 노트 생성 |
 | `GET` | `/cards/{card_id}/notes` | 노트 목록 조회 |
 | `GET` | `/cards/{card_id}/notes/{note_id}` | 노트 단건 조회 |
@@ -211,6 +221,8 @@ npm run dev
 | `POST` | `/cards/{card_id}/workbooks/{workbook_id}/attempts/{session_id}/results` | 문제집 풀이 회차의 답안과 채점 결과 기록 |
 
 카드는 `title`, 선택적인 `description`을 갖습니다. 주제는 카드 안에서 별도로 생성하며 같은 카드에는 동일한 이름의 주제를 중복 생성할 수 없습니다. 사용 중인 주제는 삭제할 수 없으므로 먼저 소속 문제의 주제를 변경하거나 문제를 삭제해야 합니다.
+
+개념은 프로필 단위에서 이름이 중복되지 않으며 여러 카드에 연결할 수 있습니다. 문제나 노트가 사용 중인 개념은 해당 카드에서 바로 해제할 수 없습니다. 문제의 `primary_concept_id`는 하나의 핵심 개념, `supporting_concept_ids`는 보조 개념, 노트의 `concept_ids`는 설명하는 개념입니다. 이 개념들은 먼저 해당 카드에 연결되어 있어야 합니다.
 
 문제는 `topic_id`, `question`, 유형에 따라 필수 또는 선택인 `answer`를 가지며 응답에는 표시용 `topic_name`이 함께 포함됩니다. 다른 카드의 주제를 연결하거나 문제를 다른 카드로 이동하는 기능은 제공하지 않습니다.
 
@@ -312,10 +324,10 @@ docker compose down -v
 
 ```text
 app/
-├── api/routes/       # 카드·주제·문제·노트 API
+├── api/routes/       # 카드·주제·개념·문제·노트 API
 ├── core/config.py    # 환경변수 설정
 ├── db/               # SQLAlchemy Base와 세션
-├── models/           # Card·Topic·Problem·Note DB 모델
+├── models/           # Card·Topic·Concept·Problem·Note DB 모델
 ├── schemas/          # 요청·응답 검증 모델
 └── main.py           # FastAPI 애플리케이션
 alembic/              # PostgreSQL 스키마 마이그레이션

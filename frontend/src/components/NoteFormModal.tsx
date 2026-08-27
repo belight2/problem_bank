@@ -9,7 +9,7 @@ import {
 } from "react";
 
 import { ApiError, getErrorMessage } from "../api/client";
-import type { Note, NoteInput, Topic } from "../types";
+import type { Concept, Note, NoteInput, Topic } from "../types";
 import { EditorErrorBoundary } from "./EditorErrorBoundary";
 import { Modal } from "./Modal";
 
@@ -20,6 +20,7 @@ const MarkdownEditor = lazy(() =>
 interface NoteFormModalProps {
   note: Note | null;
   topics: Topic[];
+  concepts: Concept[];
   onClose: () => void;
   onCreateTopic: (name: string) => Promise<Topic>;
   onSubmit: (input: NoteInput) => Promise<void>;
@@ -35,6 +36,7 @@ function getTopicErrorMessage(error: unknown) {
 export function NoteFormModal({
   note,
   topics,
+  concepts,
   onClose,
   onCreateTopic,
   onSubmit,
@@ -48,6 +50,9 @@ export function NoteFormModal({
     note?.topic_id ?? "",
   );
   const [content, setContent] = useState(note?.content_markdown ?? "");
+  const [selectedConceptIds, setSelectedConceptIds] = useState<number[]>(
+    note?.concept_ids ?? [],
+  );
   const [discardPending, setDiscardPending] = useState(false);
   const [topicCreatorOpen, setTopicCreatorOpen] = useState(false);
   const [newTopicName, setNewTopicName] = useState("");
@@ -58,7 +63,9 @@ export function NoteFormModal({
 
   const dirty = title !== (note?.title ?? "")
     || selectedTopicId !== (note?.topic_id ?? "")
-    || content !== (note?.content_markdown ?? "");
+    || content !== (note?.content_markdown ?? "")
+    || selectedConceptIds.length !== (note?.concept_ids.length ?? 0)
+    || selectedConceptIds.some((conceptId) => !note?.concept_ids.includes(conceptId));
   const busy = saving || creatingTopic;
 
   const requestClose = () => {
@@ -89,6 +96,7 @@ export function NoteFormModal({
         title: title.trim(),
         topic_id: selectedTopicId || null,
         content_markdown: content.trim(),
+        concept_ids: selectedConceptIds,
       });
     } catch (submitError) {
       setError(getErrorMessage(submitError));
@@ -181,6 +189,37 @@ export function NoteFormModal({
             </select>
           </div>
         </div>
+
+        <fieldset className="concept-link-fieldset concept-link-fieldset--note">
+          <legend>설명하는 개념 <small>선택</small></legend>
+          {concepts.length > 0 ? (
+            <div className="concept-check-list">
+              {concepts.map((concept) => {
+                const checked = selectedConceptIds.includes(concept.id);
+                return (
+                  <label className={checked ? "is-selected" : ""} key={concept.id}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setSelectedConceptIds((current) =>
+                          checked
+                            ? current.filter((conceptId) => conceptId !== concept.id)
+                            : [...current, concept.id],
+                        );
+                        setDiscardPending(false);
+                      }}
+                      disabled={busy}
+                    />
+                    <span>{concept.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="concept-link-empty">카드에 등록된 개념이 없습니다.</p>
+          )}
+        </fieldset>
 
         {topicCreatorOpen && (
           <div className="note-topic-create" role="group" aria-label="새 주제 만들기">

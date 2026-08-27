@@ -1,6 +1,10 @@
 import type {
   Card,
   CardInput,
+  Concept,
+  ConceptInput,
+  ConceptRelation,
+  ConceptRelationInput,
   Dashboard,
   GraphOutboxEvent,
   GraphRetryResult,
@@ -122,6 +126,43 @@ export const topicApi = {
     }),
   remove: (cardId: number, topicId: number) =>
     request<void>(`/cards/${cardId}/topics/${topicId}`, { method: "DELETE" }),
+};
+
+export const conceptApi = {
+  list: () => request<Concept[]>("/concepts"),
+  listForCard: (cardId: number) =>
+    request<Concept[]>(`/cards/${cardId}/concepts`),
+  create: (input: ConceptInput) =>
+    request<Concept>("/concepts", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (conceptId: number, input: ConceptInput) =>
+    request<Concept>(`/concepts/${conceptId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  remove: (conceptId: number) =>
+    request<void>(`/concepts/${conceptId}`, { method: "DELETE" }),
+  attach: (cardId: number, conceptId: number) =>
+    request<Concept>(`/cards/${cardId}/concepts/${conceptId}`, {
+      method: "PUT",
+    }),
+  detach: (cardId: number, conceptId: number) =>
+    request<void>(`/cards/${cardId}/concepts/${conceptId}`, {
+      method: "DELETE",
+    }),
+};
+
+export const conceptRelationApi = {
+  list: () => request<ConceptRelation[]>("/concept-relations"),
+  create: (input: ConceptRelationInput) =>
+    request<ConceptRelation>("/concept-relations", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  remove: (relationId: number) =>
+    request<void>(`/concept-relations/${relationId}`, { method: "DELETE" }),
 };
 
 export const noteApi = {

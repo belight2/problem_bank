@@ -1,7 +1,8 @@
-import type { Note } from "../types";
+import type { Concept, Note } from "../types";
 
 interface NoteArchiveProps {
   notes: Note[];
+  concepts: Concept[];
   loading: boolean;
   loaded: boolean;
   onOpen: (note: Note) => void;
@@ -27,6 +28,7 @@ function getNoteExcerpt(content: string) {
 
 export function NoteArchive({
   notes,
+  concepts,
   loading,
   loaded,
   onOpen,
@@ -61,6 +63,12 @@ export function NoteArchive({
                 <div className="note-card-meta">
                   <span className="note-index">{String(index + 1).padStart(2, "0")}</span>
                   <span className="topic-badge">{note.topic_name ?? "카드 전체"}</span>
+                  {note.concept_ids.map((conceptId) => {
+                    const concept = concepts.find((item) => item.id === conceptId);
+                    return concept ? (
+                      <span className="concept-badge" key={concept.id}>{concept.name}</span>
+                    ) : null;
+                  })}
                 </div>
                 <h3>{note.title}</h3>
                 <p>{getNoteExcerpt(note.content_markdown)}</p>

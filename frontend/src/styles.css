@@ -1576,6 +1576,20 @@ main {
   color: var(--text-soft);
 }
 
+.concept-badge {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border));
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning-strong);
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
 .problem-question {
   margin: 1rem 0 0;
   color: var(--text);
@@ -3921,6 +3935,327 @@ footer {
   gap: 0.75rem;
 }
 
+.concept-link-fieldset {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  gap: 1rem;
+}
+
+.concept-link-fieldset legend {
+  padding: 0 0.45rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.concept-link-fieldset legend small,
+.concept-check-field > span small {
+  margin-left: 0.25rem;
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.concept-check-field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.concept-check-field > span {
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.concept-check-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.concept-check-list label {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 100ms ease, border-color 100ms ease, background-color 100ms ease;
+}
+
+.concept-check-list label:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  transform: translateY(-1px);
+}
+
+.concept-check-list label:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.concept-check-list label.is-selected {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  background: var(--primary-soft);
+  color: var(--primary-ink);
+}
+
+.concept-check-list input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.concept-link-empty,
+.concept-manager-empty {
+  margin: 0;
+  padding: 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-faint);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.concept-manager {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.concept-manager-tabs {
+  display: flex;
+  width: fit-content;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  gap: 0.25rem;
+}
+
+.concept-manager-tabs button {
+  min-height: 40px;
+  padding: 0.55rem 0.85rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 650;
+  transition: transform 100ms ease, color 100ms ease, background-color 100ms ease;
+}
+
+.concept-manager-tabs button:hover {
+  color: var(--primary-strong);
+}
+
+.concept-manager-tabs button:active {
+  transform: translateY(1px);
+}
+
+.concept-manager-tabs button.is-active {
+  background: var(--surface);
+  color: var(--primary-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.concept-manager-tabs span {
+  margin-left: 0.3rem;
+  color: var(--text-faint);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+}
+
+.concept-create-form {
+  display: grid;
+  align-items: end;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.2fr) auto;
+  gap: 0.75rem;
+}
+
+.concept-reuse-row {
+  display: grid;
+  align-items: end;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--primary-soft) 36%, var(--surface));
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+}
+
+.concept-manager-list,
+.concept-relation-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: 0.65rem;
+}
+
+.concept-manager-list > li {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  animation: list-enter 260ms ease-out both;
+}
+
+.concept-manager-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.concept-manager-copy strong,
+.concept-manager-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.concept-manager-copy span {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+}
+
+.concept-manager-actions,
+.concept-delete-confirm > div,
+.concept-edit-form > div {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.concept-manager-actions button,
+.concept-delete-confirm button,
+.concept-edit-form button,
+.concept-relation-list button {
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary-strong);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.concept-manager-actions button:hover,
+.concept-delete-confirm button:hover,
+.concept-edit-form button:hover {
+  transform: translateY(-1px);
+}
+
+.concept-edit-form {
+  display: grid;
+  width: 100%;
+  align-items: center;
+  grid-template-columns: minmax(140px, 0.8fr) minmax(200px, 1.2fr) auto;
+  gap: 0.65rem;
+}
+
+.concept-edit-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.concept-edit-form input:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.concept-delete-confirm {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--danger-strong);
+}
+
+.concept-manager-actions .text-danger,
+.concept-delete-confirm .text-danger,
+.concept-relation-list .text-danger {
+  color: var(--danger-strong);
+}
+
+.concept-relation-form {
+  display: grid;
+  align-items: end;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  grid-template-columns: repeat(3, minmax(120px, 1fr)) auto;
+  gap: 0.75rem;
+}
+
+.concept-relation-list > li {
+  display: grid;
+  min-height: 56px;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  animation: list-enter 260ms ease-out both;
+}
+
+.concept-relation-list strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.concept-relation-list > li > span {
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.concept-relation-list > li > button {
+  font-size: 1.2rem;
+}
+
+.concept-manager-loading {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.concept-manager-loading span {
+  min-height: 70px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  animation: loading-bar 1.2s ease-in-out infinite;
+}
+
 .scope-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5085,12 +5420,17 @@ footer {
   }
 
   .topic-create-form,
-  .topic-edit-form {
+  .topic-edit-form,
+  .concept-create-form,
+  .concept-edit-form,
+  .concept-relation-form {
     align-items: stretch;
     grid-template-columns: 1fr;
   }
 
-  .topic-create-form .button {
+  .topic-create-form .button,
+  .concept-create-form .button,
+  .concept-relation-form .button {
     width: 100%;
   }
 
@@ -5102,6 +5442,42 @@ footer {
 
   .topic-row-actions {
     align-self: flex-end;
+  }
+
+  .concept-reuse-row {
+    grid-template-columns: 1fr;
+  }
+
+  .concept-reuse-row .button {
+    width: 100%;
+  }
+
+  .concept-manager-list > li,
+  .concept-delete-confirm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .concept-manager-actions,
+  .concept-delete-confirm > div,
+  .concept-edit-form > div {
+    align-self: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .concept-relation-list > li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .concept-relation-list > li > span {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .concept-relation-list > li > button {
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .modal-backdrop {

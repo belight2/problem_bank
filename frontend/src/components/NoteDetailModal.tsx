@@ -1,9 +1,10 @@
-import type { Note } from "../types";
+import type { Concept, Note } from "../types";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
 
 interface NoteDetailModalProps {
   note: Note;
+  concepts: Concept[];
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -18,6 +19,7 @@ const noteDateFormatter = new Intl.DateTimeFormat("ko-KR", {
 
 export function NoteDetailModal({
   note,
+  concepts,
   onClose,
   onEdit,
   onDelete,
@@ -28,6 +30,12 @@ export function NoteDetailModal({
       <article className="note-detail">
         <div className="note-detail-meta">
           <span className="topic-badge">{note.topic_name ?? "카드 전체"}</span>
+          {note.concept_ids.map((conceptId) => {
+            const concept = concepts.find((item) => item.id === conceptId);
+            return concept ? (
+              <span className="concept-badge" key={concept.id}>{concept.name}</span>
+            ) : null;
+          })}
           <span>{noteDateFormatter.format(new Date(note.updated_at))}</span>
         </div>
         <MarkdownContent content={note.content_markdown} />
