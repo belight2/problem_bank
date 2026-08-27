@@ -78,6 +78,43 @@ export interface Dashboard {
   recent_studies: DashboardRecentStudy[];
 }
 
+export interface GraphSyncStatus {
+  worker_enabled: boolean;
+  pending_count: number;
+  processing_count: number;
+  completed_count: number;
+  failed_count: number;
+  superseded_count: number;
+  oldest_open_created_at: string | null;
+  last_completed_at: string | null;
+}
+
+export type GraphOutboxStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "superseded";
+
+export interface GraphOutboxEvent {
+  id: number;
+  aggregate_type: "card" | "topic" | "problem" | "note";
+  aggregate_id: string;
+  event_type: "upsert" | "delete";
+  status: GraphOutboxStatus;
+  attempt_count: number;
+  available_at: string;
+  locked_at: string | null;
+  processed_at: string | null;
+  last_error: string | null;
+  created_at: string;
+}
+
+export interface GraphRetryResult {
+  superseded_event_id: number;
+  retry_event: GraphOutboxEvent;
+}
+
 export interface CardInput {
   title: string;
   description: string | null;

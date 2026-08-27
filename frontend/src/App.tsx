@@ -4,6 +4,7 @@ import {
   cardApi,
   dashboardApi,
   getErrorMessage,
+  graphSyncApi,
   noteApi,
   problemApi,
   profileApi,
@@ -14,6 +15,7 @@ import {
 import { CardFormModal } from "./components/CardFormModal";
 import { CardDashboard } from "./components/CardDashboard";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { GraphSyncModal } from "./components/GraphSyncModal";
 import { NoteArchive } from "./components/NoteArchive";
 import { NoteDetailModal } from "./components/NoteDetailModal";
 import { NoteFormModal } from "./components/NoteFormModal";
@@ -30,6 +32,7 @@ import type {
   Card,
   CardInput,
   Dashboard,
+  GraphSyncStatus,
   Note,
   NoteInput,
   Problem,
@@ -61,6 +64,8 @@ function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [graphSyncOpen, setGraphSyncOpen] = useState(false);
+  const [graphSyncStatus, setGraphSyncStatus] = useState<GraphSyncStatus | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [cards, setCards] = useState<Card[]>([]);
@@ -209,6 +214,22 @@ function App() {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!profile?.is_configured) return;
+    let ignore = false;
+    graphSyncApi
+      .status()
+      .then((status) => {
+        if (!ignore) setGraphSyncStatus(status);
+      })
+      .catch(() => {
+        if (!ignore) setGraphSyncStatus(null);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [profile?.is_configured]);
 
   const handleProfileSubmit = async (input: ProfileInput) => {
     const updated = await profileApi.update(input);
@@ -549,6 +570,16 @@ function App() {
     setProblemEditor(problem);
   };
 
+  const graphSyncTone = !graphSyncStatus
+    ? "unknown"
+    : graphSyncStatus.failed_count
+      ? "error"
+      : !graphSyncStatus.worker_enabled
+        ? "paused"
+        : (graphSyncStatus.pending_count + graphSyncStatus.processing_count) > 0
+          ? "working"
+          : "ready";
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -557,15 +588,32 @@ function App() {
           <strong>나의 문제 은행</strong>
         </button>
         {profile?.is_configured && (
-          <button
-            className="profile-button"
-            type="button"
-            onClick={() => setProfileEditorOpen(true)}
-            aria-label="프로필 설정 열기"
-          >
-            <span aria-hidden="true">{profile.display_name.slice(0, 1)}</span>
-            <strong>{profile.display_name}</strong>
-          </button>
+          <div className="topbar-actions">
+            <button
+              className={`graph-sync-trigger is-${graphSyncTone}`}
+              type="button"
+              onClick={() => setGraphSyncOpen(true)}
+              aria-label="그래프 동기화 상태 열기"
+              title="그래프 동기화"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="6" cy="12" r="2.5" />
+                <circle cx="18" cy="6" r="2.5" />
+                <circle cx="18" cy="18" r="2.5" />
+                <path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6" />
+              </svg>
+              <span aria-hidden="true" />
+            </button>
+            <button
+              className="profile-button"
+              type="button"
+              onClick={() => setProfileEditorOpen(true)}
+              aria-label="프로필 설정 열기"
+            >
+              <span aria-hidden="true">{profile.display_name.slice(0, 1)}</span>
+              <strong>{profile.display_name}</strong>
+            </button>
+          </div>
         )}
       </header>
 
@@ -1083,6 +1131,13 @@ function App() {
           initialSetup={!profile.is_configured}
           onClose={() => setProfileEditorOpen(false)}
           onSubmit={handleProfileSubmit}
+        />
+      )}
+      {graphSyncOpen && (
+        <GraphSyncModal
+          initialStatus={graphSyncStatus}
+          onStatusChange={setGraphSyncStatus}
+          onClose={() => setGraphSyncOpen(false)}
         />
       )}
       {cardEditor !== undefined && (

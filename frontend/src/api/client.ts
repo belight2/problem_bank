@@ -2,6 +2,9 @@ import type {
   Card,
   CardInput,
   Dashboard,
+  GraphOutboxEvent,
+  GraphRetryResult,
+  GraphSyncStatus,
   Note,
   NoteInput,
   Problem,
@@ -88,6 +91,15 @@ export const profileApi = {
 
 export const dashboardApi = {
   get: () => request<Dashboard>("/dashboard"),
+};
+
+export const graphSyncApi = {
+  status: () => request<GraphSyncStatus>("/graph-sync/status"),
+  failedEvents: () => request<GraphOutboxEvent[]>("/graph-sync/events/failed"),
+  retry: (eventId: number) =>
+    request<GraphRetryResult>(`/graph-sync/events/${eventId}/retry`, {
+      method: "POST",
+    }),
 };
 
 export const topicApi = {
