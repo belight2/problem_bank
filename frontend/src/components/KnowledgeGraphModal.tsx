@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 
 import { getErrorMessage, knowledgeGraphApi } from "../api/client";
 import type { Card, KnowledgeGraph, KnowledgeGraphNodeType } from "../types";
@@ -18,6 +18,12 @@ const nodeTypeLabels: Record<KnowledgeGraphNodeType, string> = {
   misconception: "오개념",
   unknown: "기타",
 };
+
+const KnowledgeGraphCanvas = lazy(() =>
+  import("./KnowledgeGraphCanvas").then((module) => ({
+    default: module.KnowledgeGraphCanvas,
+  })),
+);
 
 export function KnowledgeGraphModal({ card, onClose }: KnowledgeGraphModalProps) {
   const [graph, setGraph] = useState<KnowledgeGraph | null>(null);
@@ -141,16 +147,9 @@ export function KnowledgeGraphModal({ card, onClose }: KnowledgeGraphModalProps)
               </p>
             )}
 
-            <div className="knowledge-graph-canvas-shell">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="6" cy="12" r="2.5" />
-                <circle cx="18" cy="6" r="2.5" />
-                <circle cx="18" cy="18" r="2.5" />
-                <path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6" />
-              </svg>
-              <strong>{card.title}</strong>
-              <span>{graph.nodes.length}개 노드 · {graph.edges.length}개 관계</span>
-            </div>
+            <Suspense fallback={<div className="knowledge-graph-canvas-shell is-loading" />}>
+              <KnowledgeGraphCanvas graph={graph} />
+            </Suspense>
           </>
         ) : null}
       </div>

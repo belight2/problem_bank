@@ -2380,6 +2380,36 @@ footer {
     var(--surface-muted);
 }
 
+.knowledge-graph-canvas-shell {
+  background:
+    linear-gradient(rgba(216, 225, 219, 0.34) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(216, 225, 219, 0.34) 1px, transparent 1px),
+    radial-gradient(circle at 50% 50%, rgba(34, 197, 94, 0.08), transparent 15rem),
+    var(--surface-muted);
+  background-size: 24px 24px, 24px 24px, auto, auto;
+}
+
+.knowledge-graph-canvas-shell.is-loading::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+  content: "";
+  transform: translateX(-100%);
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.knowledge-graph-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.knowledge-graph-canvas:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+
 .knowledge-graph-skeleton-node {
   position: absolute;
   z-index: 1;
@@ -2442,8 +2472,7 @@ footer {
   text-align: center;
 }
 
-.knowledge-graph-state svg,
-.knowledge-graph-canvas-shell > svg {
+.knowledge-graph-state svg {
   width: 42px;
   height: 42px;
   padding: 0.55rem;
@@ -2543,17 +2572,7 @@ footer {
 }
 
 .knowledge-graph-canvas-shell {
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 0.7rem;
-  color: var(--text-soft);
-}
-
-.knowledge-graph-canvas-shell > span {
-  color: var(--text-faint);
-  font-size: 0.75rem;
-  font-weight: 650;
+  min-height: 440px;
 }
 
 @keyframes knowledge-graph-spin {
