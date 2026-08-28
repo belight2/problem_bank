@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 
 from app.api.dependencies import CurrentProfile, DatabaseSession
 from app.models.card import Card
+from app.models.concept import Concept
 from app.models.note import Note
 from app.models.problem import Problem
 from app.models.study_session import StudySession
@@ -16,8 +17,10 @@ from app.schemas.dashboard import (
     DashboardCardRead,
     DashboardRead,
     RecentStudyRead,
+    WeakConceptRead,
     WeakTopicRead,
 )
+from app.services.concept_mastery import compute_concept_mastery
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -123,6 +126,27 @@ def get_dashboard(profile: CurrentProfile, db: DatabaseSession) -> DashboardRead
             )
         )
     weak_topics.sort(key=lambda item: (item.accuracy_rate, -item.graded_count))
+
+    concept_rows = db.execute(
+        select(Concept.id, Concept.name).where(Concept.profile_id == profile.id)
+    ).all()
+    concept_names = {int(row[0]): str(row[1]) for row in concept_rows}
+    weak_concepts: list[WeakConceptRead] = [
+        WeakConceptRead(
+            concept_id=mastery.concept_id,
+            name=concept_names.get(mastery.concept_id, ""),
+            mastery_score=mastery.mastery_score,
+            correct_count=mastery.correct_count,
+            incorrect_count=mastery.incorrect_count,
+            graded_count=mastery.graded_count,
+            problem_count=mastery.problem_count,
+        )
+        for mastery in compute_concept_mastery(db, concept_names.keys()).values()
+        if mastery.attempted and mastery.mastery_score is not None
+    ]
+    weak_concepts.sort(
+        key=lambda item: (item.mastery_score, -item.graded_count, item.concept_id)
+    )
 
     problem_by_card = (
         select(
@@ -245,6 +269,7 @@ def get_dashboard(profile: CurrentProfile, db: DatabaseSession) -> DashboardRead
         unresolved_wrong_answer_count=unresolved_wrong_answer_count,
         today_studied_count=today_studied_count,
         weak_topics=weak_topics[:3],
+        weak_concepts=weak_concepts[:5],
         cards=dashboard_cards,
         recent_studies=recent_studies,
     )

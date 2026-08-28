@@ -956,6 +956,49 @@ main {
   gap: 0.65rem;
 }
 
+.weak-concept-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.weak-concept-item {
+  display: grid;
+  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.1rem 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.weak-concept-swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  grid-row: span 2;
+}
+
+.weak-concept-name {
+  overflow: hidden;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weak-concept-item > strong {
+  color: var(--primary-strong);
+  grid-row: span 2;
+}
+
+.weak-concept-item > small {
+  grid-column: 2;
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+
 .weak-topic-list button {
   display: grid;
   align-items: center;

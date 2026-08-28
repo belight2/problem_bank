@@ -4,27 +4,11 @@ import cytoscape, {
   type StylesheetJson,
 } from "cytoscape";
 
+import { LOW_SAMPLE_THRESHOLD, masteryColor } from "../lib/mastery";
 import type { KnowledgeGraph, KnowledgeGraphNode } from "../types";
 
 interface KnowledgeGraphCanvasProps {
   graph: KnowledgeGraph;
-}
-
-// 개념 숙련도 색: cividis 계열(파랑→노랑) 순차 램프. 색약 안전하고
-// 타입 팔레트(초록/빨강/앰버)와 겹치지 않아 오개념 노드와 혼동되지 않는다.
-const MASTERY_RAMP = ["#00204d", "#414d6b", "#7c7b78", "#bcaf6f", "#ffe945"];
-const UNATTEMPTED_COLOR = "#f0f4f2";
-// graded_count가 이 값 미만이면 라벨에 ~를 붙여 표본이 적음을 표시(백엔드 LOW_SAMPLE_THRESHOLD와 일치).
-const LOW_SAMPLE_THRESHOLD = 3;
-
-function masteryColor(score: number | null): string {
-  if (score == null) return UNATTEMPTED_COLOR;
-  const clamped = Math.min(1, Math.max(0, score));
-  const index = Math.min(
-    MASTERY_RAMP.length - 1,
-    Math.floor(clamped * MASTERY_RAMP.length),
-  );
-  return MASTERY_RAMP[index];
 }
 
 // 색만으로 판단하지 않도록 개념 라벨에 숙련도 %를 함께 노출(색약/모노 대비).

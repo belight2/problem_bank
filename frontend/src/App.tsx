@@ -30,6 +30,7 @@ import { RandomStudyModal } from "./components/RandomStudyModal";
 import { TopicManagementModal } from "./components/TopicManagementModal";
 import { WorkbookArchive } from "./components/WorkbookArchive";
 import { WrongAnswerArchive } from "./components/WrongAnswerArchive";
+import { LOW_SAMPLE_THRESHOLD, masteryColor } from "./lib/mastery";
 import { problemTypeLabels } from "./problemTypes";
 import {
   getCardHash,
@@ -1243,6 +1244,39 @@ function App() {
                   ) : (
                     <p className="weak-topic-empty">
                       문제를 풀고 채점하면 정답률이 낮은 주제를 여기서 알려드려요.
+                    </p>
+                  )}
+                </section>
+
+                <section className="weak-topic-panel">
+                  <div>
+                    <p className="eyebrow">Weak concepts</p>
+                    <h2>약한 개념</h2>
+                  </div>
+                  {dashboard.weak_concepts.length > 0 ? (
+                    <div className="weak-concept-list">
+                      {dashboard.weak_concepts.map((concept) => {
+                        const percent = Math.round(concept.mastery_score * 100);
+                        const lowSample = concept.graded_count < LOW_SAMPLE_THRESHOLD;
+                        return (
+                          <div className="weak-concept-item" key={concept.concept_id}>
+                            <span
+                              aria-hidden="true"
+                              className="weak-concept-swatch"
+                              style={{ backgroundColor: masteryColor(concept.mastery_score) }}
+                            />
+                            <span className="weak-concept-name">{concept.name}</span>
+                            <strong>{lowSample ? "~" : ""}{percent}%</strong>
+                            <small>
+                              {concept.graded_count}회 채점 · 문제 {concept.problem_count}개
+                            </small>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="weak-topic-empty">
+                      문제에 개념을 연결하고 채점하면 약한 개념을 여기서 알려드려요.
                     </p>
                   )}
                 </section>

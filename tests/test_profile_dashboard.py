@@ -1,4 +1,10 @@
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.models.card import Card
+from app.models.concept import Concept, ProblemConcept
+from app.models.problem import Problem
+from app.models.topic import Topic
 
 
 def test_profile_is_created_once_and_can_be_configured(client: TestClient) -> None:
@@ -97,3 +103,48 @@ def test_dashboard_aggregates_the_local_profile_study_data(client: TestClient) -
     assert payload["recent_studies"][0]["workbook_id"] is None
     assert payload["recent_studies"][0]["problem_count"] == 1
     assert payload["recent_studies"][0]["incorrect_count"] == 1
+
+
+def test_dashboard_surfaces_weak_concepts(
+    client: TestClient,
+    test_session_factory: sessionmaker[Session],
+) -> None:
+    client.put(
+        "/profile",
+        json={"display_name": "준혁", "timezone": "Asia/Seoul", "daily_goal": 10},
+    )
+    # primary로 연결된 문제(정답 1/오답 3)를 가진 개념을 프로필 1에 심는다.
+    with test_session_factory() as session:
+        card = Card(profile_id=1, title="SQLD")
+        session.add(card)
+        session.flush()
+        topic = Topic(card_id=card.id, name="정규화")
+        session.add(topic)
+        session.flush()
+        concept = Concept(profile_id=1, name="정규화", name_key="정규화")
+        session.add(concept)
+        session.flush()
+        problem = Problem(
+            card_id=card.id,
+            topic_id=topic.id,
+            question="정규화의 목적은?",
+            problem_type="short_answer",
+            correct_count=1,
+            incorrect_count=3,
+        )
+        session.add(problem)
+        session.flush()
+        session.add(
+            ProblemConcept(problem_id=problem.id, concept_id=concept.id, role="primary")
+        )
+        session.commit()
+
+    payload = client.get("/dashboard").json()
+
+    assert len(payload["weak_concepts"]) == 1
+    weak = payload["weak_concepts"][0]
+    assert weak["name"] == "정규화"
+    assert weak["graded_count"] == 4
+    assert weak["problem_count"] == 1
+    # 라플라스 스무딩: (1+1)/(4+2) = 0.333...
+    assert abs(weak["mastery_score"] - 1 / 3) < 1e-9

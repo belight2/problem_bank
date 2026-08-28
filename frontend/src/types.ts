@@ -33,6 +33,16 @@ export interface DashboardWeakTopic {
   accuracy_rate: number;
 }
 
+export interface DashboardWeakConcept {
+  concept_id: number;
+  name: string;
+  mastery_score: number;
+  correct_count: number;
+  incorrect_count: number;
+  graded_count: number;
+  problem_count: number;
+}
+
 export interface DashboardCard {
   card_id: number;
   card_title: string;
@@ -74,6 +84,7 @@ export interface Dashboard {
   unresolved_wrong_answer_count: number;
   today_studied_count: number;
   weak_topics: DashboardWeakTopic[];
+  weak_concepts: DashboardWeakConcept[];
   cards: DashboardCard[];
   recent_studies: DashboardRecentStudy[];
 }
