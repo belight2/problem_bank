@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from app.api.dependencies import DatabaseSession
+from app.api.routes.card_packages import router as card_packages_router
 from app.api.routes.cards import router as cards_router
 from app.api.routes.concepts import router as concepts_router
 from app.api.routes.dashboard import router as dashboard_router
@@ -43,6 +44,7 @@ app.include_router(profile_router)
 app.include_router(dashboard_router)
 app.include_router(graph_sync_router)
 app.include_router(knowledge_graph_router)
+app.include_router(card_packages_router)
 app.include_router(cards_router)
 app.include_router(concepts_router)
 app.include_router(notes_router)

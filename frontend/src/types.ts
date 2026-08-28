@@ -277,6 +277,70 @@ export interface ProblemInput {
   supporting_concept_ids: number[];
 }
 
+export interface CardPackage {
+  format: "problem-bank-card";
+  format_version: 1;
+  exported_at: string;
+  card: {
+    title: string;
+    description: string | null;
+  };
+  topics: Array<{
+    ref: string;
+    name: string;
+  }>;
+  concepts: Array<{
+    ref: string;
+    name: string;
+    description: string | null;
+  }>;
+  concept_relations: Array<{
+    source_concept_ref: string;
+    target_concept_ref: string;
+    relation_type: ConceptRelationType;
+  }>;
+  notes: Array<{
+    ref: string;
+    topic_ref: string | null;
+    title: string;
+    content_markdown: string;
+    concept_refs: string[];
+  }>;
+  problems: Array<{
+    topic_ref: string;
+    question: string;
+    problem_type: ProblemType;
+    choices: string[] | null;
+    answer: string | null;
+    source_note_ref: string | null;
+    primary_concept_ref: string | null;
+    supporting_concept_refs: string[];
+  }>;
+}
+
+export interface CardPackageSummary {
+  topic_count: number;
+  concept_count: number;
+  concept_relation_count: number;
+  note_count: number;
+  problem_count: number;
+}
+
+export interface CardPackagePreview {
+  format_version: number;
+  title: string;
+  summary: CardPackageSummary;
+  reused_concept_count: number;
+  new_concept_count: number;
+}
+
+export interface CardPackageImportResult {
+  card: Card;
+  summary: CardPackageSummary;
+  reused_concept_count: number;
+  new_concept_count: number;
+}
+
 export interface RandomProblemSet {
   session_id: string | null;
   problems: Problem[];

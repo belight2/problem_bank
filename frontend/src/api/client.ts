@@ -1,6 +1,9 @@
 import type {
   Card,
   CardInput,
+  CardPackage,
+  CardPackageImportResult,
+  CardPackagePreview,
   Concept,
   ConceptInput,
   ConceptRelation,
@@ -87,6 +90,21 @@ export const cardApi = {
   update: (cardId: number, input: CardInput) =>
     request<Card>(`/cards/${cardId}`, { method: "PATCH", body: JSON.stringify(input) }),
   remove: (cardId: number) => request<void>(`/cards/${cardId}`, { method: "DELETE" }),
+};
+
+export const cardPackageApi = {
+  exportPackage: (cardId: number) =>
+    request<CardPackage>(`/cards/${cardId}/package`),
+  preview: (cardPackage: CardPackage) =>
+    request<CardPackagePreview>("/card-packages/preview", {
+      method: "POST",
+      body: JSON.stringify(cardPackage),
+    }),
+  importPackage: (cardPackage: CardPackage) =>
+    request<CardPackageImportResult>("/card-packages/import", {
+      method: "POST",
+      body: JSON.stringify(cardPackage),
+    }),
 };
 
 export const profileApi = {

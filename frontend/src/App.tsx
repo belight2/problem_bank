@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   cardApi,
+  cardPackageApi,
   conceptApi,
   dashboardApi,
   getErrorMessage,
@@ -14,6 +15,7 @@ import {
   wrongAnswerApi,
 } from "./api/client";
 import { CardFormModal } from "./components/CardFormModal";
+import { CardImportModal } from "./components/CardImportModal";
 import { CardDashboard } from "./components/CardDashboard";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { ConceptManagementModal } from "./components/ConceptManagementModal";
@@ -107,6 +109,8 @@ function App() {
   const cardContentRequestId = useRef(0);
 
   const [cardEditor, setCardEditor] = useState<Card | null | undefined>(undefined);
+  const [cardImportOpen, setCardImportOpen] = useState(false);
+  const [exportingCardId, setExportingCardId] = useState<number | null>(null);
   const [problemEditor, setProblemEditor] = useState<Problem | null | undefined>(undefined);
   const [sourceNoteForProblem, setSourceNoteForProblem] = useState<Note | null>(null);
   const [noteEditor, setNoteEditor] = useState<Note | null | undefined>(undefined);
@@ -398,6 +402,34 @@ function App() {
     void loadDashboard();
   };
 
+  const handleExportCard = async (card: Card) => {
+    setExportingCardId(card.id);
+    setAppError(null);
+    try {
+      const cardPackage = await cardPackageApi.exportPackage(card.id);
+      const file = new Blob([JSON.stringify(cardPackage, null, 2)], {
+        type: "application/json;charset=utf-8",
+      });
+      const downloadUrl = URL.createObjectURL(file);
+      const safeTitle = card.title
+        .normalize("NFKC")
+        .replace(/[\\/:*?"<>|]/g, "-")
+        .replace(/\s+/g, " ")
+        .trim() || "card";
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl;
+      anchor.download = `${safeTitle}.pbcard.json`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      setAppError(getErrorMessage(error));
+    } finally {
+      setExportingCardId(null);
+    }
+  };
+
   const handleProblemSubmit = async (input: ProblemInput) => {
     if (!selectedCard) return;
     if (problemEditor) {
@@ -645,6 +677,13 @@ function App() {
     navigateToHash(getCardHash(selectedCardId, view));
   };
 
+  const handleCardImported = (card: Card) => {
+    setCards((current) => [card, ...current]);
+    setCardImportOpen(false);
+    void loadDashboard();
+    openCard(card.id);
+  };
+
   const handleStudySessionStarted = useCallback((sessionId: string) => {
     if (selectedCardId === null) return;
     setActiveStudySessionId(sessionId);
@@ -806,6 +845,14 @@ function App() {
                 {selectedCard.description && <p>{selectedCard.description}</p>}
               </div>
               <div className="detail-actions">
+                <button
+                  className="button button--ghost"
+                  type="button"
+                  onClick={() => void handleExportCard(selectedCard)}
+                  disabled={exportingCardId === selectedCard.id}
+                >
+                  {exportingCardId === selectedCard.id ? "내보내는 중…" : "카드 내보내기"}
+                </button>
                 <button
                   className="button button--ghost"
                   type="button"
@@ -1304,7 +1351,16 @@ function App() {
                 <p className="eyebrow">My library</p>
                 <h2>공부 카드</h2>
               </div>
-              <span>{cards.length}개</span>
+              <div className="library-heading-actions">
+                <span>{cards.length}개</span>
+                <button
+                  className="button button--ghost"
+                  type="button"
+                  onClick={() => setCardImportOpen(true)}
+                >
+                  카드 불러오기
+                </button>
+              </div>
             </div>
 
             {cardsLoading ? (
@@ -1371,6 +1427,12 @@ function App() {
       )}
       {cardEditor !== undefined && (
         <CardFormModal card={cardEditor} onClose={() => setCardEditor(undefined)} onSubmit={handleCardSubmit} />
+      )}
+      {cardImportOpen && (
+        <CardImportModal
+          onClose={() => setCardImportOpen(false)}
+          onImported={handleCardImported}
+        />
       )}
       {problemEditor !== undefined && (
         <ProblemFormModal
