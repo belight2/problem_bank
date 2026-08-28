@@ -133,6 +133,10 @@ export interface KnowledgeGraphNode {
   presented_count: number | null;
   correct_count: number | null;
   incorrect_count: number | null;
+  // 개념 노드 전용 숙련도(DB 집계). 다른 타입 노드에서는 null.
+  attempted: boolean | null;
+  problem_count: number | null;
+  mastery_score: number | null;
 }
 
 export interface KnowledgeGraphEdge {

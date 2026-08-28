@@ -3,9 +3,15 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 from rdflib.plugins.sparql.parser import parseQuery
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.dependencies import get_fuseki_client
 from app.main import app
+from app.models.card import Card
+from app.models.concept import Concept, ProblemConcept
+from app.models.problem import Problem
+from app.models.profile import Profile
+from app.models.topic import Topic
 from app.services.fuseki import FusekiQueryError
 from app.services.graph_rdf import PB_NAMESPACE, PBR_NAMESPACE
 from app.services.knowledge_graph import (
@@ -181,6 +187,9 @@ def test_read_card_knowledge_graph(client: TestClient) -> None:
                 "presented_count": None,
                 "correct_count": None,
                 "incorrect_count": None,
+                "attempted": None,
+                "problem_count": None,
+                "mastery_score": None,
             }
         ],
         "edges": [],
@@ -198,6 +207,68 @@ def test_read_card_knowledge_graph_returns_404_before_query(client: TestClient) 
 
     assert response.status_code == 404
     assert graph_client.queries == []
+
+
+def test_read_card_knowledge_graph_enriches_concept_mastery(
+    client: TestClient,
+    test_session_factory: sessionmaker[Session],
+) -> None:
+    # primary로 연결된 문제(정답 3/오답 1)를 가진 개념을 DB에 직접 심는다.
+    with test_session_factory() as session:
+        profile = Profile(display_name="테스트")
+        session.add(profile)
+        session.flush()
+        card = Card(profile_id=profile.id, title="카드")
+        session.add(card)
+        session.flush()
+        topic = Topic(card_id=card.id, name="데이터베이스")
+        session.add(topic)
+        session.flush()
+        concept = Concept(profile_id=profile.id, name="정규화", name_key="정규화")
+        session.add(concept)
+        session.flush()
+        problem = Problem(
+            card_id=card.id,
+            topic_id=topic.id,
+            question="정규화의 목적은?",
+            problem_type="short_answer",
+            correct_count=3,
+            incorrect_count=1,
+        )
+        session.add(problem)
+        session.flush()
+        session.add(
+            ProblemConcept(problem_id=problem.id, concept_id=concept.id, role="primary")
+        )
+        session.commit()
+        concept_id = concept.id
+
+    api_card = client.post("/cards", json={"title": "정보처리기사"}).json()
+    concept_iri = f"{PBR_NAMESPACE}concept/{concept_id}"
+    row = {
+        "source": binding(f"{PBR_NAMESPACE}problem-11"),
+        "sourceType": binding(f"{PB_NAMESPACE}Problem"),
+        "sourceLabel": binding("문제", binding_type="literal"),
+        "predicate": binding(f"{PB_NAMESPACE}primaryConcept"),
+        "target": binding(concept_iri),
+        "targetType": binding(f"{PB_NAMESPACE}Concept"),
+        "targetLabel": binding("정규화", binding_type="literal"),
+        "targetExternalId": binding(str(concept_id), binding_type="literal"),
+    }
+    graph_client = FakeFusekiClient({"results": {"bindings": [row]}})
+    app.dependency_overrides[get_fuseki_client] = lambda: graph_client
+
+    response = client.get(f"/cards/{api_card['id']}/knowledge-graph")
+
+    assert response.status_code == 200
+    nodes = {node["iri"]: node for node in response.json()["nodes"]}
+    concept_node = nodes[concept_iri]
+    assert concept_node["type"] == "concept"
+    assert concept_node["attempted"] is True
+    assert concept_node["problem_count"] == 1
+    assert concept_node["correct_count"] == 3
+    assert concept_node["incorrect_count"] == 1
+    assert concept_node["mastery_score"] is not None
 
 
 def test_read_card_knowledge_graph_returns_503_when_fuseki_is_unavailable(

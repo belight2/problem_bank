@@ -4,10 +4,38 @@ import cytoscape, {
   type StylesheetJson,
 } from "cytoscape";
 
-import type { KnowledgeGraph } from "../types";
+import type { KnowledgeGraph, KnowledgeGraphNode } from "../types";
 
 interface KnowledgeGraphCanvasProps {
   graph: KnowledgeGraph;
+}
+
+// 개념 숙련도 색: cividis 계열(파랑→노랑) 순차 램프. 색약 안전하고
+// 타입 팔레트(초록/빨강/앰버)와 겹치지 않아 오개념 노드와 혼동되지 않는다.
+const MASTERY_RAMP = ["#00204d", "#414d6b", "#7c7b78", "#bcaf6f", "#ffe945"];
+const UNATTEMPTED_COLOR = "#f0f4f2";
+// graded_count가 이 값 미만이면 라벨에 ~를 붙여 표본이 적음을 표시(백엔드 LOW_SAMPLE_THRESHOLD와 일치).
+const LOW_SAMPLE_THRESHOLD = 3;
+
+function masteryColor(score: number | null): string {
+  if (score == null) return UNATTEMPTED_COLOR;
+  const clamped = Math.min(1, Math.max(0, score));
+  const index = Math.min(
+    MASTERY_RAMP.length - 1,
+    Math.floor(clamped * MASTERY_RAMP.length),
+  );
+  return MASTERY_RAMP[index];
+}
+
+// 색만으로 판단하지 않도록 개념 라벨에 숙련도 %를 함께 노출(색약/모노 대비).
+function conceptLabel(node: KnowledgeGraphNode): string {
+  if (node.mastery_score == null || node.attempted === false) {
+    return `${node.label} · 미평가`;
+  }
+  const percent = Math.round(node.mastery_score * 100);
+  const graded = (node.correct_count ?? 0) + (node.incorrect_count ?? 0);
+  const prefix = graded < LOW_SAMPLE_THRESHOLD ? "~" : "";
+  return `${node.label} · ${prefix}${percent}%`;
 }
 
 const graphStyles: StylesheetJson = [
@@ -79,7 +107,8 @@ const graphStyles: StylesheetJson = [
     style: {
       width: 62,
       height: 62,
-      "background-color": "#0b3d20",
+      // 숙련도 램프 색(개념 노드마다 data.masteryColor로 주입). 테두리는 고정해 '개념'임을 유지.
+      "background-color": "data(masteryColor)",
       "border-color": "#16a34a",
       color: "#17201a",
     },
@@ -148,8 +177,11 @@ export function KnowledgeGraphCanvas({ graph }: KnowledgeGraphCanvasProps) {
     ...graph.nodes.map((node) => ({
       data: {
         id: node.id,
-        label: node.label,
+        label: node.type === "concept" ? conceptLabel(node) : node.label,
         nodeType: node.type,
+        ...(node.type === "concept"
+          ? { masteryColor: masteryColor(node.mastery_score) }
+          : {}),
       },
       classes: node.type,
     })),
@@ -213,6 +245,19 @@ export function KnowledgeGraphCanvas({ graph }: KnowledgeGraphCanvasProps) {
         aria-label={`${graph.nodes.length}개 노드와 ${graph.edges.length}개 관계로 구성된 지식 그래프`}
         tabIndex={0}
       />
+      <div className="knowledge-graph-legend">
+        <span className="knowledge-graph-legend-title">개념 숙련도</span>
+        <span className="knowledge-graph-legend-scale">
+          <span className="knowledge-graph-legend-label">약함</span>
+          <span className="knowledge-graph-legend-ramp" />
+          <span className="knowledge-graph-legend-label">강함</span>
+        </span>
+        <span className="knowledge-graph-legend-scale">
+          <span className="knowledge-graph-legend-swatch" />
+          <span className="knowledge-graph-legend-label">미평가</span>
+        </span>
+        <span className="knowledge-graph-legend-note">숫자 = 정답률 %</span>
+      </div>
     </div>
   );
 }
