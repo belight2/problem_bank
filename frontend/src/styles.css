@@ -688,6 +688,53 @@ main {
   gap: 0.6rem;
 }
 
+.card-weak-concept-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.card-weak-concept-item {
+  display: grid;
+  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.card-weak-concept-swatch {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.card-weak-concept-name {
+  overflow: hidden;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-weak-concept-item > strong {
+  color: var(--primary-strong);
+  font-size: 0.85rem;
+}
+
+.card-weak-concept-item > button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .dashboard-activity-list > button,
 .dashboard-card-summary-list > button,
 .card-dashboard-workbooks > button {

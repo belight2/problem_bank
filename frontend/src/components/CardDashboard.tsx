@@ -1,8 +1,19 @@
-import type { Concept, Note, Problem, Topic, Workbook, WrongAnswer } from "../types";
+import { masteryColor } from "../lib/mastery";
+import type {
+  Concept,
+  DashboardWeakConcept,
+  Note,
+  Problem,
+  Topic,
+  Workbook,
+  WrongAnswer,
+} from "../types";
 
 interface CardDashboardProps {
   topics: Topic[];
   concepts: Concept[];
+  weakConcepts: DashboardWeakConcept[];
+  onStartConceptStudy: (conceptId: number, conceptName: string) => void;
   problems: Problem[];
   notes: Note[];
   workbooks: Workbook[];
@@ -32,6 +43,8 @@ function accuracy(correctCount: number, incorrectCount: number) {
 export function CardDashboard({
   topics,
   concepts,
+  weakConcepts,
+  onStartConceptStudy,
   problems,
   notes,
   workbooks,
@@ -202,6 +215,40 @@ export function CardDashboard({
           ) : (
             <div className="card-dashboard-panel-empty">
               <span>등록된 주제 없음</span>
+            </div>
+          )}
+        </section>
+
+        <section className="card-dashboard-panel">
+          <div className="card-dashboard-panel-heading">
+            <div>
+              <p className="eyebrow">Weak concepts</p>
+              <h2>약한 개념 복습</h2>
+            </div>
+          </div>
+          {weakConcepts.length > 0 ? (
+            <div className="card-weak-concept-list">
+              {weakConcepts.map((concept) => (
+                <div className="card-weak-concept-item" key={concept.concept_id}>
+                  <span
+                    aria-hidden="true"
+                    className="card-weak-concept-swatch"
+                    style={{ backgroundColor: masteryColor(concept.mastery_score) }}
+                  />
+                  <span className="card-weak-concept-name">{concept.name}</span>
+                  <strong>{Math.round(concept.mastery_score * 100)}%</strong>
+                  <button
+                    type="button"
+                    onClick={() => onStartConceptStudy(concept.concept_id, concept.name)}
+                  >
+                    복습
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="card-dashboard-panel-empty">
+              <span>문제에 개념을 연결하고 채점하면 약한 개념을 여기서 알려드려요.</span>
             </div>
           )}
         </section>

@@ -57,6 +57,8 @@ import type {
   WorkbookStudyRequest,
   WrongAnswer,
   WrongAnswerInput,
+  ConceptStudyRequest,
+  DashboardWeakConcept,
   WrongAnswerStudyRequest,
 } from "./types";
 
@@ -91,6 +93,7 @@ function App() {
   const [concepts, setConcepts] = useState<Concept[]>([]);
   const [conceptsLoading, setConceptsLoading] = useState(false);
   const [problems, setProblems] = useState<Problem[]>([]);
+  const [weakConcepts, setWeakConcepts] = useState<DashboardWeakConcept[]>([]);
   const [problemsLoading, setProblemsLoading] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
@@ -113,6 +116,7 @@ function App() {
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
   const [randomStudyOpen, setRandomStudyOpen] = useState(false);
   const [wrongAnswerStudy, setWrongAnswerStudy] = useState<WrongAnswerStudyRequest | null>(null);
+  const [conceptStudy, setConceptStudy] = useState<ConceptStudyRequest | null>(null);
   const [workbookStudy, setWorkbookStudy] = useState<WorkbookStudyRequest | null>(null);
   const [activeStudySessionId, setActiveStudySessionId] = useState<string | null>(null);
   const [resumeStudySessionId, setResumeStudySessionId] = useState<string | null>(null);
@@ -170,6 +174,7 @@ function App() {
         loadedNotes,
         loadedWrongAnswers,
         loadedWorkbooks,
+        loadedWeakConcepts,
       ] = await Promise.all([
           topicApi.list(cardId),
           conceptApi.listForCard(cardId),
@@ -177,6 +182,7 @@ function App() {
           noteApi.list(cardId),
           wrongAnswerApi.list(cardId),
           workbookApi.list(cardId),
+          conceptApi.cardWeakConcepts(cardId),
         ]);
       if (requestId !== cardContentRequestId.current) return;
       setTopics(loadedTopics);
@@ -185,6 +191,7 @@ function App() {
       setNotes(loadedNotes);
       setWrongAnswers(loadedWrongAnswers);
       setWorkbooks(loadedWorkbooks);
+      setWeakConcepts(loadedWeakConcepts);
       setCardContentLoaded(true);
     } catch (error) {
       if (requestId !== cardContentRequestId.current) return;
@@ -208,6 +215,7 @@ function App() {
     setTopics([]);
     setConcepts([]);
     setProblems([]);
+    setWeakConcepts([]);
     setNotes([]);
     setWrongAnswers([]);
     setWorkbooks([]);
@@ -312,13 +320,14 @@ function App() {
 
     if (route.studySessionId) {
       setActiveStudySessionId(route.studySessionId);
-      if (!randomStudyOpen && !wrongAnswerStudy && !workbookStudy) {
+      if (!randomStudyOpen && !wrongAnswerStudy && !conceptStudy && !workbookStudy) {
         setResumeStudySessionId(route.studySessionId);
         setRandomStudyOpen(true);
       }
     } else if (activeStudySessionId !== null) {
       setRandomStudyOpen(false);
       setWrongAnswerStudy(null);
+      setConceptStudy(null);
       setWorkbookStudy(null);
       setActiveStudySessionId(null);
       setResumeStudySessionId(null);
@@ -328,6 +337,7 @@ function App() {
     cards,
     cardsLoading,
     clearCardState,
+    conceptStudy,
     loadCardContent,
     loadDashboard,
     profile?.is_configured,
@@ -554,6 +564,10 @@ function App() {
       problemId,
       problemCount: problemId === undefined ? Math.max(unresolvedCount, 1) : 1,
     });
+  };
+
+  const openConceptStudy = (conceptId: number, conceptName: string) => {
+    setConceptStudy({ conceptId, conceptName, problemCount: 20 });
   };
 
   const openWrongAnswerNote = (noteId: number) => {
@@ -869,6 +883,8 @@ function App() {
               <CardDashboard
                 topics={topics}
                 concepts={concepts}
+                weakConcepts={weakConcepts}
+                onStartConceptStudy={openConceptStudy}
                 problems={problems}
                 notes={notes}
                 workbooks={workbooks}
@@ -1430,7 +1446,7 @@ function App() {
           onConfirm={handleDeleteNote}
         />
       )}
-      {(randomStudyOpen || wrongAnswerStudy || workbookStudy) && selectedCard && (
+      {(randomStudyOpen || wrongAnswerStudy || conceptStudy || workbookStudy) && selectedCard && (
         <RandomStudyModal
           card={selectedCard}
           topics={topics}
@@ -1438,12 +1454,14 @@ function App() {
           onStatisticsChanged={handleProblemStatisticsChanged}
           onSessionStarted={handleStudySessionStarted}
           wrongAnswerStudy={wrongAnswerStudy ?? undefined}
+          conceptStudy={conceptStudy ?? undefined}
           workbookStudy={workbookStudy ?? undefined}
           resumeSessionId={resumeStudySessionId ?? undefined}
           onWorkbooksChanged={refreshWorkbooks}
           onClose={() => {
             setRandomStudyOpen(false);
             setWrongAnswerStudy(null);
+            setConceptStudy(null);
             setWorkbookStudy(null);
             setActiveStudySessionId(null);
             setResumeStudySessionId(null);

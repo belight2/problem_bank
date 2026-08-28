@@ -16,6 +16,7 @@ import type {
   ProblemInput,
   Profile,
   ProfileInput,
+  DashboardWeakConcept,
   RandomProblemSet,
   RandomStudyPreset,
   RandomStudyPresetInput,
@@ -152,6 +153,19 @@ export const conceptApi = {
     request<void>(`/cards/${cardId}/concepts/${conceptId}`, {
       method: "DELETE",
     }),
+  cardWeakConcepts: (cardId: number, signal?: AbortSignal) =>
+    request<DashboardWeakConcept[]>(`/cards/${cardId}/weak-concepts?limit=5`, {
+      signal,
+    }),
+  study: (
+    cardId: number,
+    conceptId: number,
+    options: { count: number; signal?: AbortSignal },
+  ) =>
+    request<RandomProblemSet>(
+      `/cards/${cardId}/concepts/${conceptId}/study?limit=${options.count}`,
+      { method: "POST", signal: options.signal },
+    ),
 };
 
 export const conceptRelationApi = {

@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy import func, or_, select
@@ -6,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import CurrentProfile, DatabaseSession
 from app.api.routes.cards import get_card_or_404
+from app.api.routes.problems import choose_weighted_problems
 from app.models.card import Card
 from app.models.concept import (
     CardConcept,
@@ -14,10 +16,12 @@ from app.models.concept import (
     ConceptRelationType,
     NoteConcept,
     ProblemConcept,
+    ProblemConceptRole,
 )
 from app.models.graph_outbox import GraphOutboxEventType
 from app.models.note import Note
 from app.models.problem import Problem
+from app.models.study_session import StudySession
 from app.schemas.concept import (
     ConceptCreate,
     ConceptRead,
@@ -25,6 +29,9 @@ from app.schemas.concept import (
     ConceptRelationRead,
     ConceptUpdate,
 )
+from app.schemas.dashboard import WeakConceptRead
+from app.schemas.problem import RandomProblemSetRead
+from app.services.concept_mastery import compute_concept_mastery
 from app.services.concepts import concept_name_key
 from app.services.graph_outbox import enqueue_card_event, enqueue_concept_event
 
@@ -235,6 +242,95 @@ def detach_concept_from_card(
     enqueue_card_event(db, card)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/cards/{card_id}/concepts/{concept_id}/study",
+    response_model=RandomProblemSetRead,
+)
+def create_concept_study_set(
+    card_id: int,
+    concept_id: int,
+    profile: CurrentProfile,
+    db: DatabaseSession,
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+) -> dict[str, str | None | list[Problem]]:
+    # 약한 개념 복습: 그 카드에서 개념에 primary로 연결된 문제만 모아 임시 세션을 만든다.
+    # 오답노트 /study와 같은 패턴 — workbook 없이 StudySession을 만들고 기존 채점 흐름으로 채점된다.
+    get_card_or_404(card_id, db, profile.id)
+    get_concept_or_404(concept_id, profile.id, db)
+    statement = (
+        select(Problem)
+        .join(ProblemConcept, ProblemConcept.problem_id == Problem.id)
+        .options(selectinload(Problem.topic), selectinload(Problem.source_note))
+        .where(
+            Problem.card_id == card_id,
+            ProblemConcept.concept_id == concept_id,
+            ProblemConcept.role == ProblemConceptRole.PRIMARY.value,
+        )
+    )
+    eligible_problems = list(db.scalars(statement).all())
+    selected_problems = choose_weighted_problems(eligible_problems, limit)
+    if not selected_problems:
+        return {"session_id": None, "problems": []}
+
+    session_id = str(uuid4())
+    for problem in selected_problems:
+        problem.presented_count += 1
+    db.add(
+        StudySession(
+            id=session_id,
+            card_id=card_id,
+            problem_ids=[problem.id for problem in selected_problems],
+        )
+    )
+    db.commit()
+    return {"session_id": session_id, "problems": selected_problems}
+
+
+@router.get("/cards/{card_id}/weak-concepts", response_model=list[WeakConceptRead])
+def list_card_weak_concepts(
+    card_id: int,
+    profile: CurrentProfile,
+    db: DatabaseSession,
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+) -> list[WeakConceptRead]:
+    # 이 카드에 primary 문제가 있는 개념을 (전역) 숙련도 오름차순으로. 색·%는 그래프 히트맵과 동일.
+    get_card_or_404(card_id, db, profile.id)
+    concept_ids = list(
+        db.scalars(
+            select(ProblemConcept.concept_id)
+            .join(Problem, Problem.id == ProblemConcept.problem_id)
+            .where(
+                Problem.card_id == card_id,
+                ProblemConcept.role == ProblemConceptRole.PRIMARY.value,
+            )
+            .distinct()
+        ).all()
+    )
+    if not concept_ids:
+        return []
+    names = {
+        concept.id: concept.name
+        for concept in db.scalars(select(Concept).where(Concept.id.in_(concept_ids))).all()
+    }
+    weak_concepts = [
+        WeakConceptRead(
+            concept_id=mastery.concept_id,
+            name=names.get(mastery.concept_id, ""),
+            mastery_score=mastery.mastery_score,
+            correct_count=mastery.correct_count,
+            incorrect_count=mastery.incorrect_count,
+            graded_count=mastery.graded_count,
+            problem_count=mastery.problem_count,
+        )
+        for mastery in compute_concept_mastery(db, concept_ids).values()
+        if mastery.attempted and mastery.mastery_score is not None
+    ]
+    weak_concepts.sort(
+        key=lambda item: (item.mastery_score, -item.graded_count, item.concept_id)
+    )
+    return weak_concepts[:limit]
 
 
 @router.get("/concept-relations", response_model=list[ConceptRelationRead])

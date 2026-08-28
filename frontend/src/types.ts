@@ -313,6 +313,12 @@ export interface WrongAnswerStudyRequest {
   problemCount: number;
 }
 
+export interface ConceptStudyRequest {
+  conceptId: number;
+  conceptName: string;
+  problemCount: number;
+}
+
 export interface WorkbookAttempt {
   id: string;
   attempt_number: number;

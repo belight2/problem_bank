@@ -11,6 +11,7 @@ import {
   getErrorMessage,
   noteApi,
   problemApi,
+  conceptApi,
   randomStudyPresetApi,
   randomStudySettingsApi,
   workbookApi,
@@ -19,6 +20,7 @@ import {
 import { problemTypeLabels } from "../problemTypes";
 import type {
   Card,
+  ConceptStudyRequest,
   Note,
   Problem,
   ProblemType,
@@ -42,6 +44,7 @@ interface RandomStudyModalProps {
   onSessionStarted: (sessionId: string) => void;
   onClose: () => void;
   wrongAnswerStudy?: WrongAnswerStudyRequest;
+  conceptStudy?: ConceptStudyRequest;
   workbookStudy?: WorkbookStudyRequest;
   resumeSessionId?: string;
 }
@@ -145,6 +148,7 @@ export function RandomStudyModal({
   onSessionStarted,
   onClose,
   wrongAnswerStudy,
+  conceptStudy,
   workbookStudy,
   resumeSessionId,
 }: RandomStudyModalProps) {
@@ -166,6 +170,7 @@ export function RandomStudyModal({
   const questionRef = useRef<HTMLHeadingElement>(null);
   const requestController = useRef<AbortController | null>(null);
   const wrongStudyStartedRef = useRef(false);
+  const conceptStudyStartedRef = useRef(false);
   const workbookStudyStartedRef = useRef(false);
   const resumeStartedRef = useRef(false);
 
@@ -200,6 +205,9 @@ export function RandomStudyModal({
   const [activeWrongAnswerStudy, setActiveWrongAnswerStudy] = useState<
     WrongAnswerStudyRequest | null
   >(wrongAnswerStudy ?? null);
+  const [activeConceptStudy] = useState<ConceptStudyRequest | null>(
+    conceptStudy ?? null,
+  );
   const [submittingResults, setSubmittingResults] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -214,6 +222,8 @@ export function RandomStudyModal({
       ? "풀던 문제를 복원하는 중…"
       : wrongAnswerStudy
       ? "오답을 불러오는 중…"
+      : conceptStudy
+      ? "개념 복습을 불러오는 중…"
       : workbookStudy
         ? "문제집을 불러오는 중…"
         : "설정을 불러오는 중…",
@@ -444,7 +454,7 @@ export function RandomStudyModal({
 
   useEffect(() => {
     if (resumeSessionId) return;
-    if (activeWrongAnswerStudy || workbookStudy) {
+    if (activeWrongAnswerStudy || activeConceptStudy || workbookStudy) {
       setStage("overview");
       return;
     }
@@ -481,7 +491,14 @@ export function RandomStudyModal({
       });
 
     return () => controller.abort();
-  }, [activeWrongAnswerStudy, applyConfiguration, card.id, resumeSessionId, workbookStudy]);
+  }, [
+    activeWrongAnswerStudy,
+    activeConceptStudy,
+    applyConfiguration,
+    card.id,
+    resumeSessionId,
+    workbookStudy,
+  ]);
 
   useEffect(() => () => requestController.current?.abort(), []);
 
@@ -529,6 +546,50 @@ export function RandomStudyModal({
         setStage("unavailable");
       });
   }, [activeWrongAnswerStudy, card.id, onSessionStarted, onStatisticsChanged, stage]);
+
+  useEffect(() => {
+    if (!activeConceptStudy || stage !== "overview" || conceptStudyStartedRef.current) return;
+
+    conceptStudyStartedRef.current = true;
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    setLoadingMessage("개념 복습을 불러오는 중…");
+    setStage("loading");
+    setStudySessionId(null);
+    setError(null);
+
+    conceptApi.study(card.id, activeConceptStudy.conceptId, {
+      count: activeConceptStudy.problemCount,
+      signal: controller.signal,
+    })
+      .then((result) => {
+        if (result.problems.length === 0 || result.session_id === null) {
+          setError("이 개념에 다시 풀 문제가 없습니다.");
+          setStage("unavailable");
+          return;
+        }
+        setProblems(result.problems);
+        setStudySessionId(result.session_id);
+        onSessionStarted(result.session_id);
+        onStatisticsChanged(result.problems);
+        setRequestedCount(activeConceptStudy.problemCount);
+        setCurrentIndex(0);
+        setAnswers({});
+        setResults({});
+        setReferenceNotes({});
+        setOpenReferenceProblemId(null);
+        setLoadingReferenceNoteId(null);
+        setReferenceNoteErrors({});
+        setError(null);
+        setStage("study");
+      })
+      .catch((requestError: unknown) => {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        setError(getErrorMessage(requestError));
+        setStage("unavailable");
+      });
+  }, [activeConceptStudy, card.id, onSessionStarted, onStatisticsChanged, stage]);
 
   const loadWorkbookStudy = useCallback(async (request: WorkbookStudyRequest) => {
     requestController.current?.abort();
@@ -920,6 +981,8 @@ export function RandomStudyModal({
 
   const modalTitle = activeWrongAnswerStudy
     ? "오답 다시 풀기"
+    : activeConceptStudy
+    ? `${activeConceptStudy.conceptName} 복습`
     : workbookStudy && !currentWorkbook
       ? workbookStudy.mode === "retry" ? "문제집 다시 풀기" : "새 문제집 만들기"
     : stage === "settings"
@@ -935,7 +998,7 @@ export function RandomStudyModal({
       title={modalTitle}
       onClose={onClose}
       size="wide"
-      headerAction={!activeWrongAnswerStudy && !workbookStudy && stage === "overview" ? (
+      headerAction={!activeWrongAnswerStudy && !activeConceptStudy && !workbookStudy && stage === "overview" ? (
         <button
           className="settings-gear"
           type="button"
@@ -950,7 +1013,7 @@ export function RandomStudyModal({
         </button>
       ) : undefined}
     >
-      {stage === "overview" && !activeWrongAnswerStudy && !workbookStudy && (
+      {stage === "overview" && !activeWrongAnswerStudy && !activeConceptStudy && !workbookStudy && (
         <section className="study-overview">
           <label className="field workbook-title-field" htmlFor={workbookTitleId}>
             <span>문제집 이름</span>
