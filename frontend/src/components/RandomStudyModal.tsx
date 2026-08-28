@@ -39,9 +39,11 @@ interface RandomStudyModalProps {
   availableProblems: Problem[];
   onStatisticsChanged: (problems: Problem[]) => void;
   onWorkbooksChanged: () => void;
+  onSessionStarted: (sessionId: string) => void;
   onClose: () => void;
   wrongAnswerStudy?: WrongAnswerStudyRequest;
   workbookStudy?: WorkbookStudyRequest;
+  resumeSessionId?: string;
 }
 
 type StudyStage =
@@ -65,6 +67,45 @@ interface StudyConfiguration {
   incorrectCountThreshold: number;
 }
 
+interface StoredStudyDraft {
+  version: 1;
+  cardId: number;
+  sessionId: string;
+  stage: "study" | "grading" | "complete";
+  requestedCount: number;
+  problems: Problem[];
+  currentWorkbook: Workbook | null;
+  currentIndex: number;
+  answers: Record<number, string>;
+  results: Record<number, GradeResult>;
+  wrongAnswerStudy: WrongAnswerStudyRequest | null;
+}
+
+function getStudyDraftKey(cardId: number, sessionId: string) {
+  return `problem-bank:study:${cardId}:${sessionId}`;
+}
+
+function readStudyDraft(cardId: number, sessionId: string): StoredStudyDraft | null {
+  try {
+    const stored = localStorage.getItem(getStudyDraftKey(cardId, sessionId));
+    if (!stored) return null;
+    const draft = JSON.parse(stored) as Partial<StoredStudyDraft>;
+    if (
+      draft.version !== 1
+      || draft.cardId !== cardId
+      || draft.sessionId !== sessionId
+      || !Array.isArray(draft.problems)
+      || draft.problems.length === 0
+      || !["study", "grading", "complete"].includes(draft.stage ?? "")
+    ) {
+      return null;
+    }
+    return draft as StoredStudyDraft;
+  } catch {
+    return null;
+  }
+}
+
 function getSelectionSummary(configuration: StudyConfiguration) {
   if (configuration.selectionMode === "incorrect_rate") {
     return `오답률 ${configuration.incorrectRateThreshold}% 이상 · 최소 ${configuration.minimumAttemptCount}회`;
@@ -77,6 +118,11 @@ function getSelectionSummary(configuration: StudyConfiguration) {
 
 function isAutomaticallyGraded(problemType: ProblemType) {
   return problemType === "multiple_choice" || problemType === "true_false";
+}
+
+function isExactShortAnswerMatch(problem: Problem, submittedAnswer: string) {
+  if (problem.problem_type !== "short_answer" || !problem.answer) return false;
+  return submittedAnswer.trim().normalize("NFC") === problem.answer.trim().normalize("NFC");
 }
 
 function createDefaultWorkbookTitle() {
@@ -96,9 +142,11 @@ export function RandomStudyModal({
   availableProblems,
   onStatisticsChanged,
   onWorkbooksChanged,
+  onSessionStarted,
   onClose,
   wrongAnswerStudy,
   workbookStudy,
+  resumeSessionId,
 }: RandomStudyModalProps) {
   const allScopeId = useId();
   const topicScopeId = useId();
@@ -119,6 +167,7 @@ export function RandomStudyModal({
   const requestController = useRef<AbortController | null>(null);
   const wrongStudyStartedRef = useRef(false);
   const workbookStudyStartedRef = useRef(false);
+  const resumeStartedRef = useRef(false);
 
   const [stage, setStage] = useState<StudyStage>("loading");
   const [scope, setScope] = useState<StudyScope>("all");
@@ -148,6 +197,9 @@ export function RandomStudyModal({
   const [problems, setProblems] = useState<Problem[]>([]);
   const [studySessionId, setStudySessionId] = useState<string | null>(null);
   const [currentWorkbook, setCurrentWorkbook] = useState<Workbook | null>(null);
+  const [activeWrongAnswerStudy, setActiveWrongAnswerStudy] = useState<
+    WrongAnswerStudyRequest | null
+  >(wrongAnswerStudy ?? null);
   const [submittingResults, setSubmittingResults] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -158,7 +210,9 @@ export function RandomStudyModal({
   const [referenceNoteErrors, setReferenceNoteErrors] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState(
-    wrongAnswerStudy
+    resumeSessionId
+      ? "풀던 문제를 복원하는 중…"
+      : wrongAnswerStudy
       ? "오답을 불러오는 중…"
       : workbookStudy
         ? "문제집을 불러오는 중…"
@@ -325,7 +379,72 @@ export function RandomStudyModal({
   }, [count, maxSelectableProblems]);
 
   useEffect(() => {
-    if (wrongAnswerStudy || workbookStudy) {
+    if (!resumeSessionId || resumeStartedRef.current) return;
+    resumeStartedRef.current = true;
+    const draft = readStudyDraft(card.id, resumeSessionId);
+    if (!draft) {
+      setError("이 브라우저에 저장된 풀이 내용을 찾을 수 없습니다.");
+      setStage("unavailable");
+      return;
+    }
+
+    setStudySessionId(draft.sessionId);
+    setProblems(draft.problems);
+    setCurrentWorkbook(draft.currentWorkbook);
+    setActiveWrongAnswerStudy(draft.wrongAnswerStudy);
+    setRequestedCount(draft.requestedCount);
+    setCurrentIndex(Math.min(draft.currentIndex, draft.problems.length - 1));
+    setAnswers(draft.answers);
+    setResults(draft.results);
+    setError(null);
+    setStage(draft.stage);
+  }, [card.id, resumeSessionId]);
+
+  useEffect(() => {
+    if (
+      !studySessionId
+      || problems.length === 0
+      || (stage !== "study" && stage !== "grading" && stage !== "complete")
+    ) {
+      return;
+    }
+    const draft: StoredStudyDraft = {
+      version: 1,
+      cardId: card.id,
+      sessionId: studySessionId,
+      stage,
+      requestedCount,
+      problems,
+      currentWorkbook,
+      currentIndex,
+      answers,
+      results,
+      wrongAnswerStudy: activeWrongAnswerStudy,
+    };
+    try {
+      localStorage.setItem(
+        getStudyDraftKey(card.id, studySessionId),
+        JSON.stringify(draft),
+      );
+    } catch {
+      // 저장 공간이 차거나 차단된 경우에도 현재 풀이 자체는 계속 진행합니다.
+    }
+  }, [
+    activeWrongAnswerStudy,
+    answers,
+    card.id,
+    currentIndex,
+    currentWorkbook,
+    problems,
+    requestedCount,
+    results,
+    stage,
+    studySessionId,
+  ]);
+
+  useEffect(() => {
+    if (resumeSessionId) return;
+    if (activeWrongAnswerStudy || workbookStudy) {
       setStage("overview");
       return;
     }
@@ -362,12 +481,12 @@ export function RandomStudyModal({
       });
 
     return () => controller.abort();
-  }, [applyConfiguration, card.id, workbookStudy, wrongAnswerStudy]);
+  }, [activeWrongAnswerStudy, applyConfiguration, card.id, resumeSessionId, workbookStudy]);
 
   useEffect(() => () => requestController.current?.abort(), []);
 
   useEffect(() => {
-    if (!wrongAnswerStudy || stage !== "overview" || wrongStudyStartedRef.current) return;
+    if (!activeWrongAnswerStudy || stage !== "overview" || wrongStudyStartedRef.current) return;
 
     wrongStudyStartedRef.current = true;
     requestController.current?.abort();
@@ -379,8 +498,8 @@ export function RandomStudyModal({
     setError(null);
 
     wrongAnswerApi.study(card.id, {
-      count: wrongAnswerStudy.problemCount,
-      problemId: wrongAnswerStudy.problemId,
+      count: activeWrongAnswerStudy.problemCount,
+      problemId: activeWrongAnswerStudy.problemId,
       signal: controller.signal,
     })
       .then((result) => {
@@ -391,8 +510,9 @@ export function RandomStudyModal({
         }
         setProblems(result.problems);
         setStudySessionId(result.session_id);
+        onSessionStarted(result.session_id);
         onStatisticsChanged(result.problems);
-        setRequestedCount(wrongAnswerStudy.problemCount);
+        setRequestedCount(activeWrongAnswerStudy.problemCount);
         setCurrentIndex(0);
         setAnswers({});
         setResults({});
@@ -408,7 +528,7 @@ export function RandomStudyModal({
         setError(getErrorMessage(requestError));
         setStage("unavailable");
       });
-  }, [card.id, onStatisticsChanged, stage, wrongAnswerStudy]);
+  }, [activeWrongAnswerStudy, card.id, onSessionStarted, onStatisticsChanged, stage]);
 
   const loadWorkbookStudy = useCallback(async (request: WorkbookStudyRequest) => {
     requestController.current?.abort();
@@ -426,8 +546,10 @@ export function RandomStudyModal({
         ? await workbookApi.retry(card.id, request.workbookId, controller.signal)
         : await workbookApi.regenerate(card.id, request.workbookId, undefined, controller.signal);
       setCurrentWorkbook(result.workbook);
+      setActiveWrongAnswerStudy(null);
       setProblems(result.problems);
       setStudySessionId(result.session_id);
+      onSessionStarted(result.session_id);
       onStatisticsChanged(result.problems);
       onWorkbooksChanged();
       setRequestedCount(result.workbook.problem_count);
@@ -445,7 +567,7 @@ export function RandomStudyModal({
       setError(getErrorMessage(requestError));
       setStage("unavailable");
     }
-  }, [card.id, onStatisticsChanged, onWorkbooksChanged]);
+  }, [card.id, onSessionStarted, onStatisticsChanged, onWorkbooksChanged]);
 
   useEffect(() => {
     if (!workbookStudy || stage !== "overview" || workbookStudyStartedRef.current) return;
@@ -511,8 +633,10 @@ export function RandomStudyModal({
         incorrectCountThreshold: savedSettings.incorrect_count_threshold,
       });
       setCurrentWorkbook(result.workbook);
+      setActiveWrongAnswerStudy(null);
       setProblems(result.problems);
       setStudySessionId(result.session_id);
+      onSessionStarted(result.session_id);
       onStatisticsChanged(result.problems);
       onWorkbooksChanged();
       setRequestedCount(savedSettings.problem_count);
@@ -794,7 +918,7 @@ export function RandomStudyModal({
     }
   };
 
-  const modalTitle = wrongAnswerStudy
+  const modalTitle = activeWrongAnswerStudy
     ? "오답 다시 풀기"
     : workbookStudy && !currentWorkbook
       ? workbookStudy.mode === "retry" ? "문제집 다시 풀기" : "새 문제집 만들기"
@@ -811,7 +935,7 @@ export function RandomStudyModal({
       title={modalTitle}
       onClose={onClose}
       size="wide"
-      headerAction={!wrongAnswerStudy && !workbookStudy && stage === "overview" ? (
+      headerAction={!activeWrongAnswerStudy && !workbookStudy && stage === "overview" ? (
         <button
           className="settings-gear"
           type="button"
@@ -826,7 +950,7 @@ export function RandomStudyModal({
         </button>
       ) : undefined}
     >
-      {stage === "overview" && !wrongAnswerStudy && !workbookStudy && (
+      {stage === "overview" && !activeWrongAnswerStudy && !workbookStudy && (
         <section className="study-overview">
           <label className="field workbook-title-field" htmlFor={workbookTitleId}>
             <span>문제집 이름</span>
@@ -1264,6 +1388,10 @@ export function RandomStudyModal({
             {problems.map((problem, index) => {
               const automatic = isAutomaticallyGraded(problem.problem_type);
               const result = results[problem.id];
+              const exactShortAnswerMatch = isExactShortAnswerMatch(
+                problem,
+                answers[problem.id] ?? "",
+              );
               return (
                 <article className="batch-grade-card" key={problem.id}>
                   <div className="batch-grade-card-heading">
@@ -1282,7 +1410,12 @@ export function RandomStudyModal({
                       <p>{answers[problem.id]}</p>
                     </div>
                     <div>
-                      <span>{automatic ? "정답" : "기준 답안 · 해설"}</span>
+                      <span>
+                        {automatic ? "정답" : "기준 답안 · 해설"}
+                        {exactShortAnswerMatch && (
+                          <small className="answer-match-hint">답안 일치</small>
+                        )}
+                      </span>
                       <p>{problem.answer || "등록된 기준 답안이나 해설이 없습니다."}</p>
                     </div>
                   </div>
@@ -1307,7 +1440,13 @@ export function RandomStudyModal({
                         오답
                       </button>
                       <button
-                        className={result === "correct" ? "is-selected is-correct" : ""}
+                        className={
+                          result === "correct"
+                            ? "is-selected is-correct"
+                            : exactShortAnswerMatch
+                              ? "is-suggested"
+                              : ""
+                        }
                         type="button"
                         onClick={() => recordManualResult(problem.id, "correct")}
                       >
@@ -1392,7 +1531,7 @@ export function RandomStudyModal({
             <div><strong>{ungradedCount}</strong><span>채점 제외</span></div>
           </div>
           <div className="study-actions">
-            {!wrongAnswerStudy && currentWorkbook && (
+            {!activeWrongAnswerStudy && currentWorkbook && (
               <button
                 className="button button--ghost"
                 type="button"
@@ -1408,7 +1547,7 @@ export function RandomStudyModal({
               className="button button--primary"
               type="button"
               onClick={() => {
-                if (wrongAnswerStudy) {
+                if (activeWrongAnswerStudy) {
                   wrongStudyStartedRef.current = false;
                   setStage("overview");
                   return;
@@ -1421,7 +1560,7 @@ export function RandomStudyModal({
                 }
               }}
             >
-              {wrongAnswerStudy ? "오답 다시 풀기" : "이 문제집 다시 풀기"}
+              {activeWrongAnswerStudy ? "오답 다시 풀기" : "이 문제집 다시 풀기"}
             </button>
           </div>
         </div>

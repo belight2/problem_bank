@@ -7,6 +7,7 @@ import { Modal } from "./Modal";
 interface TopicManagementModalProps {
   card: Card;
   topics: Topic[];
+  description?: string;
   onCreated: (topic: Topic) => void;
   onUpdated: (topic: Topic) => void;
   onDeleted: (topicId: number) => void;
@@ -28,6 +29,7 @@ function getTopicErrorMessage(error: unknown) {
 export function TopicManagementModal({
   card,
   topics,
+  description,
   onCreated,
   onUpdated,
   onDeleted,
@@ -123,6 +125,7 @@ export function TopicManagementModal({
   return (
     <Modal
       title="주제 관리"
+      description={description}
       onClose={onClose}
       size="wide"
       closeDisabled={busy}

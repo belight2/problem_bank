@@ -170,7 +170,6 @@ export function CardDashboard({
           ) : (
             <div className="card-dashboard-panel-empty">
               <span>문제집 없음</span>
-              <button type="button" onClick={onCreateWorkbook}>문제집 만들기</button>
             </div>
           )}
         </section>
@@ -203,7 +202,6 @@ export function CardDashboard({
           ) : (
             <div className="card-dashboard-panel-empty">
               <span>등록된 주제 없음</span>
-              <button type="button" onClick={onCreateProblem}>문제 만들기</button>
             </div>
           )}
         </section>

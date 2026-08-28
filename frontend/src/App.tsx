@@ -31,6 +31,14 @@ import { TopicManagementModal } from "./components/TopicManagementModal";
 import { WorkbookArchive } from "./components/WorkbookArchive";
 import { WrongAnswerArchive } from "./components/WrongAnswerArchive";
 import { problemTypeLabels } from "./problemTypes";
+import {
+  getCardHash,
+  getLibraryHash,
+  navigateToHash,
+  parseHashRoute,
+  replaceHash,
+  type CardContentView,
+} from "./routing";
 import type {
   Card,
   CardInput,
@@ -90,9 +98,8 @@ function App() {
   const [workbooks, setWorkbooks] = useState<Workbook[]>([]);
   const [workbooksLoading, setWorkbooksLoading] = useState(false);
   const [cardContentLoaded, setCardContentLoaded] = useState(false);
-  const [contentView, setContentView] = useState<
-    "dashboard" | "problems" | "notes" | "wrongAnswers" | "workbooks"
-  >("dashboard");
+  const [contentView, setContentView] = useState<CardContentView>("dashboard");
+  const [routeRevision, setRouteRevision] = useState(0);
   const cardContentRequestId = useRef(0);
 
   const [cardEditor, setCardEditor] = useState<Card | null | undefined>(undefined);
@@ -106,7 +113,10 @@ function App() {
   const [randomStudyOpen, setRandomStudyOpen] = useState(false);
   const [wrongAnswerStudy, setWrongAnswerStudy] = useState<WrongAnswerStudyRequest | null>(null);
   const [workbookStudy, setWorkbookStudy] = useState<WorkbookStudyRequest | null>(null);
+  const [activeStudySessionId, setActiveStudySessionId] = useState<string | null>(null);
+  const [resumeStudySessionId, setResumeStudySessionId] = useState<string | null>(null);
   const [topicManagerOpen, setTopicManagerOpen] = useState(false);
+  const [topicManagerDescription, setTopicManagerDescription] = useState<string | null>(null);
   const [conceptManagerOpen, setConceptManagerOpen] = useState(false);
 
   const selectedCard = useMemo(
@@ -190,6 +200,38 @@ function App() {
     }
   }, []);
 
+  const clearCardState = useCallback(() => {
+    cardContentRequestId.current += 1;
+    setAppError(null);
+    setSelectedCardId(null);
+    setTopics([]);
+    setConcepts([]);
+    setProblems([]);
+    setNotes([]);
+    setWrongAnswers([]);
+    setWorkbooks([]);
+    setTopicsLoading(false);
+    setConceptsLoading(false);
+    setProblemsLoading(false);
+    setNotesLoading(false);
+    setWrongAnswersLoading(false);
+    setWorkbooksLoading(false);
+    setCardContentLoaded(false);
+    setTopicManagerOpen(false);
+    setTopicManagerDescription(null);
+    setConceptManagerOpen(false);
+    setKnowledgeGraphOpen(false);
+    setRandomStudyOpen(false);
+    setWrongAnswerStudy(null);
+    setWorkbookStudy(null);
+    setActiveStudySessionId(null);
+    setResumeStudySessionId(null);
+    setContentView("dashboard");
+    setNoteEditor(undefined);
+    setNoteViewer(null);
+    setSourceNoteForProblem(null);
+  }, []);
+
   useEffect(() => {
     let ignore = false;
 
@@ -227,6 +269,75 @@ function App() {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    const handleHashChange = () => setRouteRevision((current) => current + 1);
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- URL 해시를 화면 상태로 동기화하는 라우팅 효과입니다. */
+  useEffect(() => {
+    if (profileLoading || cardsLoading || !profile?.is_configured) return;
+
+    const route = parseHashRoute(window.location.hash);
+    if (route.page === "library") {
+      if (selectedCardId !== null) {
+        clearCardState();
+        void loadDashboard();
+      }
+      return;
+    }
+
+    if (!cards.some((card) => card.id === route.cardId)) {
+      replaceHash(getLibraryHash());
+      if (selectedCardId !== null) clearCardState();
+      return;
+    }
+
+    setContentView(route.view);
+    if (selectedCardId !== route.cardId) {
+      setTopics([]);
+      setConcepts([]);
+      setProblems([]);
+      setNotes([]);
+      setWrongAnswers([]);
+      setWorkbooks([]);
+      setSelectedCardId(route.cardId);
+      setAppError(null);
+      window.scrollTo({ top: 0, behavior: "auto" });
+      void loadCardContent(route.cardId);
+    }
+
+    if (route.studySessionId) {
+      setActiveStudySessionId(route.studySessionId);
+      if (!randomStudyOpen && !wrongAnswerStudy && !workbookStudy) {
+        setResumeStudySessionId(route.studySessionId);
+        setRandomStudyOpen(true);
+      }
+    } else if (activeStudySessionId !== null) {
+      setRandomStudyOpen(false);
+      setWrongAnswerStudy(null);
+      setWorkbookStudy(null);
+      setActiveStudySessionId(null);
+      setResumeStudySessionId(null);
+    }
+  }, [
+    activeStudySessionId,
+    cards,
+    cardsLoading,
+    clearCardState,
+    loadCardContent,
+    loadDashboard,
+    profile?.is_configured,
+    profileLoading,
+    randomStudyOpen,
+    routeRevision,
+    selectedCardId,
+    workbookStudy,
+    wrongAnswerStudy,
+  ]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!profile?.is_configured) return;
@@ -454,21 +565,8 @@ function App() {
     await cardApi.remove(cardToDelete.id);
     setCards((current) => current.filter((card) => card.id !== cardToDelete.id));
     if (selectedCardId === cardToDelete.id) {
-      cardContentRequestId.current += 1;
-      setSelectedCardId(null);
-      setTopics([]);
-      setConcepts([]);
-      setProblems([]);
-      setNotes([]);
-      setWrongAnswers([]);
-      setWorkbooks([]);
-      setTopicsLoading(false);
-      setConceptsLoading(false);
-      setProblemsLoading(false);
-      setNotesLoading(false);
-      setWrongAnswersLoading(false);
-      setWorkbooksLoading(false);
-      setCardContentLoaded(false);
+      clearCardState();
+      replaceHash(getLibraryHash());
     }
     setCardToDelete(null);
     void loadDashboard();
@@ -512,60 +610,37 @@ function App() {
     setNoteToDelete(null);
   };
 
-  const openCard = (cardId: number) => {
-    setTopics([]);
-    setConcepts([]);
-    setProblems([]);
-    setNotes([]);
-    setWrongAnswers([]);
-    setWorkbooks([]);
-    setTopicsLoading(true);
-    setConceptsLoading(true);
-    setProblemsLoading(true);
-    setNotesLoading(true);
-    setWrongAnswersLoading(true);
-    setWorkbooksLoading(true);
-    setCardContentLoaded(false);
-    setAppError(null);
-    setSelectedCardId(cardId);
-    setContentView("dashboard");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    void loadCardContent(cardId);
+  const openCard = (cardId: number, view: CardContentView = "dashboard") => {
+    navigateToHash(getCardHash(cardId, view));
   };
 
   const closeCard = () => {
-    cardContentRequestId.current += 1;
-    setAppError(null);
-    setSelectedCardId(null);
-    setTopics([]);
-    setConcepts([]);
-    setProblems([]);
-    setNotes([]);
-    setWrongAnswers([]);
-    setWorkbooks([]);
-    setTopicsLoading(false);
-    setConceptsLoading(false);
-    setProblemsLoading(false);
-    setNotesLoading(false);
-    setWrongAnswersLoading(false);
-    setWorkbooksLoading(false);
-    setCardContentLoaded(false);
-    setTopicManagerOpen(false);
-    setConceptManagerOpen(false);
-    setKnowledgeGraphOpen(false);
-    setRandomStudyOpen(false);
-    setWrongAnswerStudy(null);
-    setWorkbookStudy(null);
-    setContentView("dashboard");
-    setNoteEditor(undefined);
-    setNoteViewer(null);
-    setSourceNoteForProblem(null);
-    void loadDashboard();
+    if (window.location.hash === getLibraryHash() || !window.location.hash) {
+      if (selectedCardId !== null) {
+        clearCardState();
+        void loadDashboard();
+      }
+      return;
+    }
+    navigateToHash(getLibraryHash());
   };
+
+  const openContentView = (view: CardContentView) => {
+    if (selectedCardId === null) return;
+    navigateToHash(getCardHash(selectedCardId, view));
+  };
+
+  const handleStudySessionStarted = useCallback((sessionId: string) => {
+    if (selectedCardId === null) return;
+    setActiveStudySessionId(sessionId);
+    setResumeStudySessionId(null);
+    navigateToHash(getCardHash(selectedCardId, contentView, sessionId));
+  }, [contentView, selectedCardId]);
 
   const openProblemCreator = () => {
     if (!cardContentLoaded || topicsLoading) return;
     if (topics.length === 0) {
+      setTopicManagerDescription("문제를 만들려면 먼저 주제가 필요해요.");
       setTopicManagerOpen(true);
       return;
     }
@@ -618,6 +693,7 @@ function App() {
     setNoteViewer(null);
     if (topics.length === 0) {
       setSourceNoteForProblem(note);
+      setTopicManagerDescription("노트에서 문제를 만들려면 먼저 주제가 필요해요.");
       setTopicManagerOpen(true);
       return;
     }
@@ -750,7 +826,7 @@ function App() {
                 className={contentView === "dashboard" ? "is-active" : ""}
                 type="button"
                 aria-current={contentView === "dashboard" ? "page" : undefined}
-                onClick={() => setContentView("dashboard")}
+                onClick={() => openContentView("dashboard")}
               >
                 대시보드
               </button>
@@ -758,7 +834,7 @@ function App() {
                 className={contentView === "problems" ? "is-active" : ""}
                 type="button"
                 aria-current={contentView === "problems" ? "page" : undefined}
-                onClick={() => setContentView("problems")}
+                onClick={() => openContentView("problems")}
               >
                 문제 <span>{problems.length}</span>
               </button>
@@ -766,7 +842,7 @@ function App() {
                 className={contentView === "notes" ? "is-active" : ""}
                 type="button"
                 aria-current={contentView === "notes" ? "page" : undefined}
-                onClick={() => setContentView("notes")}
+                onClick={() => openContentView("notes")}
               >
                 노트 <span>{notes.length}</span>
               </button>
@@ -774,7 +850,7 @@ function App() {
                 className={contentView === "wrongAnswers" ? "is-active" : ""}
                 type="button"
                 aria-current={contentView === "wrongAnswers" ? "page" : undefined}
-                onClick={() => setContentView("wrongAnswers")}
+                onClick={() => openContentView("wrongAnswers")}
               >
                 오답노트 <span>{wrongAnswers.length}</span>
               </button>
@@ -782,7 +858,7 @@ function App() {
                 className={contentView === "workbooks" ? "is-active" : ""}
                 type="button"
                 aria-current={contentView === "workbooks" ? "page" : undefined}
-                onClick={() => setContentView("workbooks")}
+                onClick={() => openContentView("workbooks")}
               >
                 문제집 <span>{workbooks.length}</span>
               </button>
@@ -807,9 +883,9 @@ function App() {
                 onCreateProblem={openProblemCreator}
                 onCreateNote={() => setNoteEditor(null)}
                 onCreateWorkbook={() => setRandomStudyOpen(true)}
-                onOpenProblems={() => setContentView("problems")}
-                onOpenWorkbooks={() => setContentView("workbooks")}
-                onOpenWrongAnswers={() => setContentView("wrongAnswers")}
+                onOpenProblems={() => openContentView("problems")}
+                onOpenWorkbooks={() => openContentView("workbooks")}
+                onOpenWrongAnswers={() => openContentView("wrongAnswers")}
               />
             ) : contentView === "problems" ? (
               <>
@@ -818,7 +894,10 @@ function App() {
                 <button
                   className="button button--ghost"
                   type="button"
-                  onClick={() => setTopicManagerOpen(true)}
+                  onClick={() => {
+                    setTopicManagerDescription(null);
+                    setTopicManagerOpen(true);
+                  }}
                   disabled={!cardContentLoaded || topicsLoading}
                 >
                   주제 관리
@@ -916,14 +995,6 @@ function App() {
                     ? "문제를 만들기 전에 주제를 추가해 주세요"
                     : "첫 문제를 만들어 보세요"}
                 </h3>
-                <button
-                  className="button button--primary"
-                  type="button"
-                  onClick={openProblemCreator}
-                  disabled={!cardContentLoaded || topicsLoading}
-                >
-                  {topics.length === 0 ? "주제 만들기" : "문제 만들기"}
-                </button>
               </div>
             )}
               </>
@@ -949,7 +1020,6 @@ function App() {
                   onOpen={setNoteViewer}
                   onEdit={setNoteEditor}
                   onDelete={setNoteToDelete}
-                  onCreate={() => setNoteEditor(null)}
                 />
               </>
             ) : contentView === "wrongAnswers" ? (
@@ -960,7 +1030,10 @@ function App() {
                 onUpdate={handleWrongAnswerUpdate}
                 onStudy={openWrongAnswerStudy}
                 onOpenNote={openWrongAnswerNote}
-                onManageTopics={() => setTopicManagerOpen(true)}
+                onManageTopics={() => {
+                  setTopicManagerDescription(null);
+                  setTopicManagerOpen(true);
+                }}
               />
             ) : (
               <WorkbookArchive
@@ -1150,6 +1223,13 @@ function App() {
                     <div className="weak-topic-list">
                       {dashboard.weak_topics.map((topic) => (
                         <button
+                          className={
+                            topic.accuracy_rate < 50
+                              ? "is-critical"
+                              : topic.accuracy_rate < 80
+                                ? "is-watch"
+                                : "is-stable"
+                          }
                           key={topic.topic_id}
                           type="button"
                           onClick={() => openCard(topic.card_id)}
@@ -1322,13 +1402,18 @@ function App() {
           topics={topics}
           availableProblems={problems}
           onStatisticsChanged={handleProblemStatisticsChanged}
+          onSessionStarted={handleStudySessionStarted}
           wrongAnswerStudy={wrongAnswerStudy ?? undefined}
           workbookStudy={workbookStudy ?? undefined}
+          resumeSessionId={resumeStudySessionId ?? undefined}
           onWorkbooksChanged={refreshWorkbooks}
           onClose={() => {
             setRandomStudyOpen(false);
             setWrongAnswerStudy(null);
             setWorkbookStudy(null);
+            setActiveStudySessionId(null);
+            setResumeStudySessionId(null);
+            navigateToHash(getCardHash(selectedCard.id, contentView));
           }}
         />
       )}
@@ -1336,11 +1421,13 @@ function App() {
         <TopicManagementModal
           card={selectedCard}
           topics={topics}
+          description={topicManagerDescription ?? undefined}
           onCreated={handleTopicCreated}
           onUpdated={handleTopicUpdated}
           onDeleted={handleTopicDeleted}
           onClose={() => {
             setTopicManagerOpen(false);
+            setTopicManagerDescription(null);
             if (sourceNoteForProblem && topics.length > 0) {
               setProblemEditor(null);
             } else if (sourceNoteForProblem) {

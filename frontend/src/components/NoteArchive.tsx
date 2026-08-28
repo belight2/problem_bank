@@ -8,7 +8,6 @@ interface NoteArchiveProps {
   onOpen: (note: Note) => void;
   onEdit: (note: Note) => void;
   onDelete: (note: Note) => void;
-  onCreate: () => void;
 }
 
 const noteDateFormatter = new Intl.DateTimeFormat("ko-KR", {
@@ -34,7 +33,6 @@ export function NoteArchive({
   onOpen,
   onEdit,
   onDelete,
-  onCreate,
 }: NoteArchiveProps) {
   return (
     <>
@@ -92,9 +90,6 @@ export function NoteArchive({
         <div className="empty-state">
           <span className="empty-index" aria-hidden="true">N</span>
           <h3>첫 공부 노트를 작성해 보세요</h3>
-          <button className="button button--primary" type="button" onClick={onCreate}>
-            노트 만들기
-          </button>
         </div>
       )}
     </>

@@ -63,6 +63,7 @@ export function ProfileFormModal({
       }
       onClose={onClose}
       closeDisabled={saving || initialSetup}
+      hideClose={initialSetup}
     >
       <form className="form-stack" onSubmit={handleSubmit}>
         <label className="field" htmlFor={nameId}>

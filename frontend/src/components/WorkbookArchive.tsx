@@ -104,9 +104,6 @@ export function WorkbookArchive({
         <div className="empty-state">
           <span className="empty-index" aria-hidden="true">01</span>
           <h3>아직 만든 문제집이 없어요</h3>
-          <button className="button button--primary" type="button" onClick={onCreate}>
-            문제집 만들기
-          </button>
         </div>
       ) : (
         <div className="workbook-list">
@@ -172,7 +169,7 @@ export function WorkbookArchive({
                         같은 설정으로 새 문제집
                       </button>
                       <button
-                        className="button button--secondary"
+                        className="button button--primary"
                         type="button"
                         onClick={() => onStudy({ workbookId: workbook.id, mode: "retry" })}
                         disabled={deletingId === workbook.id}

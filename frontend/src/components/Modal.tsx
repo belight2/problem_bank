@@ -8,6 +8,7 @@ interface ModalProps {
   headerAction?: ReactNode;
   size?: "default" | "wide";
   closeDisabled?: boolean;
+  hideClose?: boolean;
 }
 
 const focusableSelector =
@@ -21,6 +22,7 @@ export function Modal({
   children,
   size = "default",
   closeDisabled = false,
+  hideClose = false,
 }: ModalProps) {
   const panelRef = useRef<HTMLElement>(null);
   const closeDisabledRef = useRef(closeDisabled);
@@ -97,15 +99,17 @@ export function Modal({
             </div>
             {description && <p id={descriptionId}>{description}</p>}
           </div>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={onClose}
-            aria-label="창 닫기"
-            disabled={closeDisabled}
-          >
-            닫기
-          </button>
+          {!hideClose && (
+            <button
+              className="icon-button"
+              type="button"
+              onClick={onClose}
+              aria-label="창 닫기"
+              disabled={closeDisabled}
+            >
+              닫기
+            </button>
+          )}
         </header>
         {children}
       </section>

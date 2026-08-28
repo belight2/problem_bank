@@ -78,7 +78,7 @@ export function ProblemFormModal({
       : ["", ""];
 
   const [selectedTopicId, setSelectedTopicId] = useState<number | "">(
-    problem?.topic_id ?? sourceNote?.topic_id ?? "",
+    problem?.topic_id ?? sourceNote?.topic_id ?? (topics.length === 1 ? topics[0].id : ""),
   );
   const [selectedPrimaryConceptId, setSelectedPrimaryConceptId] = useState<
     number | ""
